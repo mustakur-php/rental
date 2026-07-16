@@ -5,6 +5,7 @@ namespace App\Domains\Property\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Domains\Property\Models\PropertyLeasePeriod;
 
 class PropertyLease extends Model
 {
@@ -30,6 +31,11 @@ class PropertyLease extends Model
     public function schedules(): HasMany
     {
         return $this->hasMany(PropertyLeaseSchedule::class);
+    }
+
+    public function periods(): HasMany
+    {
+        return $this->hasMany(PropertyLeasePeriod::class)->orderBy('period_no');
     }
 
     public function activeSchedules(): HasMany

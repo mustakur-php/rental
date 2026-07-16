@@ -311,6 +311,90 @@
                                 </select>
                             </div>
 
+                            {{-- تصاعد الإيجار --}}
+                            <div class="md:col-span-2">
+                                <div class="flex items-center justify-between rounded-2xl border border-purple-200 bg-white px-5 py-4">
+                                    <div>
+                                        <div class="text-sm font-bold text-slate-700">تصاعد الإيجار</div>
+                                        <div class="text-xs text-slate-400 mt-0.5">تحديد فترات بإيجار متصاعد مع كل فترة</div>
+                                    </div>
+                                    <button type="button" wire:click="$toggle('has_lease_escalation')"
+                                        @class([
+                                            'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none',
+                                            'bg-purple-600' => $has_lease_escalation,
+                                            'bg-slate-200'  => !$has_lease_escalation,
+                                        ])>
+                                        <span @class([
+                                            'pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                                            'translate-x-5' => $has_lease_escalation,
+                                            'translate-x-0' => !$has_lease_escalation,
+                                        ])></span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            @if($has_lease_escalation)
+                            <div class="md:col-span-2 space-y-3">
+                                <div class="overflow-x-auto rounded-2xl border border-purple-200">
+                                    <table class="w-full text-sm">
+                                        <thead>
+                                            <tr class="bg-purple-50 text-purple-700 text-right">
+                                                <th class="px-4 py-3 font-bold">#</th>
+                                                <th class="px-4 py-3 font-bold">المدة (شهر)</th>
+                                                <th class="px-4 py-3 font-bold">نسبة الزيادة %</th>
+                                                <th class="px-4 py-3 font-bold">الإيجار السنوي</th>
+                                                <th class="px-4 py-3 font-bold">إجمالي الفترة</th>
+                                                <th class="px-4 py-3"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-slate-100">
+                                            @foreach($lease_periods as $i => $period)
+                                            <tr wire:key="lp-{{ $i }}">
+                                                <td class="px-4 py-3 font-bold text-slate-400">{{ $i + 1 }}</td>
+                                                <td class="px-4 py-3">
+                                                    <input type="number" min="1"
+                                                        wire:model.live="lease_periods.{{ $i }}.duration_months"
+                                                        class="w-24 rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 text-center">
+                                                </td>
+                                                <td class="px-4 py-3">
+                                                    @if($i === 0)
+                                                        <span class="text-slate-400 text-xs px-3">—</span>
+                                                    @else
+                                                        <div class="flex items-center gap-1">
+                                                            <input type="number" min="0" step="0.01"
+                                                                wire:model.live="lease_periods.{{ $i }}.increase_pct"
+                                                                class="w-24 rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 text-center">
+                                                            <span class="text-slate-400 text-xs">%</span>
+                                                        </div>
+                                                    @endif
+                                                </td>
+                                                <td class="px-4 py-3 font-semibold text-slate-700">
+                                                    {{ number_format($period['annual_amount'] ?? 0, 0) }} ر.س
+                                                </td>
+                                                <td class="px-4 py-3 text-purple-700 font-bold">
+                                                    {{ number_format(($period['annual_amount'] ?? 0) * ((int)($period['duration_months'] ?? 0) / 12), 0) }} ر.س
+                                                </td>
+                                                <td class="px-4 py-3">
+                                                    @if(count($lease_periods) > 1)
+                                                    <button type="button" wire:click="removeLeasePeriod({{ $i }})"
+                                                        class="rounded-full p-1 text-rose-400 hover:bg-rose-50 hover:text-rose-600 transition">
+                                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                                                    </button>
+                                                    @endif
+                                                </td>
+                                            </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <button type="button" wire:click="addLeasePeriod"
+                                    class="flex items-center gap-2 rounded-2xl border border-dashed border-purple-300 bg-purple-50 px-5 py-3 text-sm font-bold text-purple-700 hover:bg-purple-100 transition w-full justify-center">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                                    إضافة فترة جديدة
+                                </button>
+                            </div>
+                            @endif
+
                             {{-- ملخص الحساب التلقائي --}}
                             @if($computedLeaseTotalAmount > 0)
                             <div class="md:col-span-2 rounded-2xl bg-emerald-50 border border-emerald-200 p-4 space-y-1.5 text-sm">

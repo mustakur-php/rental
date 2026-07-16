@@ -5,6 +5,7 @@ namespace App\Livewire\Properties;
 use App\Domains\Company\Models\Company;
 use App\Domains\Property\Models\Property;
 use App\Domains\Property\Models\PropertyLease;
+use App\Domains\Property\Models\PropertyLeasePeriod;
 use App\Domains\Property\Models\PropertyLeaseSchedule;
 use App\Traits\HasPermissionGuard;
 use Carbon\Carbon;
@@ -22,6 +23,12 @@ class PropertyIndex extends Component
     public bool $showCreateModal = false;
     public bool $showEditModal   = false;
     public ?int  $editingPropertyId = null;
+
+    // تصاعد إيجار العقار (مستأجر)
+    public bool  $has_lease_escalation = false;
+    public array $lease_periods        = [
+        ['duration_months' => 12, 'increase_pct' => 0, 'annual_amount' => 0],
+    ];
 
     public array $form = [
         'company_id'     => null,
@@ -83,6 +90,8 @@ class PropertyIndex extends Component
             'lease_annual_rent'      => '',
             'lease_payment_cycle'    => 'monthly',
         ]);
+        $this->has_lease_escalation = false;
+        $this->lease_periods        = [['duration_months' => 12, 'increase_pct' => 0, 'annual_amount' => 0]];
         $this->showCreateModal = true;
     }
 
@@ -139,6 +148,19 @@ class PropertyIndex extends Component
             'lease_annual_rent'      => $this->backCalculateAnnualRent($lease),
             'lease_payment_cycle'    => $lease?->payment_cycle ?? 'monthly',
         ];
+        // تحميل فترات التصاعد إن وجدت
+        if ($lease && $lease->periods()->exists()) {
+            $this->has_lease_escalation = true;
+            $this->lease_periods = $lease->periods->map(fn ($p) => [
+                'duration_months' => $p->duration_months,
+                'increase_pct'    => (float) $p->increase_percentage,
+                'annual_amount'   => (float) $p->annual_amount,
+            ])->toArray();
+        } else {
+            $this->has_lease_escalation = false;
+            $this->lease_periods = [['duration_months' => 12, 'increase_pct' => 0, 'annual_amount' => (float)($this->form['lease_annual_rent'] ?? 0)]];
+        }
+
         $this->showEditModal = true;
     }
 
@@ -162,6 +184,10 @@ class PropertyIndex extends Component
         ]);
 
         if ($this->form['ownership_type'] === 'leased') {
+            if ($this->has_lease_escalation) {
+                $this->recomputeLeasePeriodAmounts();
+            }
+
             $existing = $property->activeLease;
             if ($existing) {
                 $existing->update([
@@ -174,6 +200,13 @@ class PropertyIndex extends Component
                     'total_amount'          => $this->calcLeaseTotalAmount(),
                     'payment_cycle'         => $this->form['lease_payment_cycle'],
                 ]);
+
+                if ($this->has_lease_escalation) {
+                    $this->savePropertyLeasePeriods($existing);
+                } else {
+                    $existing->periods()->delete();
+                }
+
                 $this->syncLeaseSchedules($existing);
             } else {
                 $this->createLeaseForProperty($property);
@@ -207,14 +240,78 @@ class PropertyIndex extends Component
         $this->dispatch('notify', message: 'تم نقل العقار ووحداته إلى الأرشيف');
     }
 
+    // ─── تصاعد إيجار العقار ──────────────────────────
+    public function addLeasePeriod(): void
+    {
+        $this->lease_periods[] = ['duration_months' => 12, 'increase_pct' => 0, 'annual_amount' => 0];
+        $this->recomputeLeasePeriodAmounts();
+    }
+
+    public function removeLeasePeriod(int $index): void
+    {
+        if (count($this->lease_periods) <= 1) return;
+        array_splice($this->lease_periods, $index, 1);
+        $this->lease_periods = array_values($this->lease_periods);
+        $this->recomputeLeasePeriodAmounts();
+    }
+
+    public function updatedLeasePeriods(): void
+    {
+        $this->recomputeLeasePeriodAmounts();
+    }
+
+    public function updatedHasLeaseEscalation(): void
+    {
+        if ($this->has_lease_escalation) {
+            $base = (float) ($this->form['lease_annual_rent'] ?? 0);
+            $this->lease_periods = [['duration_months' => 12, 'increase_pct' => 0, 'annual_amount' => $base]];
+        }
+    }
+
+    public function updatedFormLeaseAnnualRent(): void
+    {
+        $this->recomputeLeasePeriodAmounts();
+    }
+
+    private function recomputeLeasePeriodAmounts(): void
+    {
+        if (! $this->has_lease_escalation) return;
+        $base = (float) ($this->form['lease_annual_rent'] ?? 0);
+        foreach ($this->lease_periods as $i => &$period) {
+            if ($i === 0) {
+                $period['annual_amount'] = $base;
+            } else {
+                $prev  = $this->lease_periods[$i - 1];
+                $pct   = (float) ($period['increase_pct'] ?? 0);
+                $period['annual_amount'] = round((float) $prev['annual_amount'] * (1 + $pct / 100), 2);
+            }
+        }
+        unset($period);
+    }
+
+    private function savePropertyLeasePeriods(PropertyLease $lease): void
+    {
+        $lease->periods()->delete();
+        foreach ($this->lease_periods as $i => $period) {
+            PropertyLeasePeriod::create([
+                'property_lease_id'   => $lease->id,
+                'period_no'           => $i + 1,
+                'duration_months'     => (int) $period['duration_months'],
+                'annual_amount'       => (float) $period['annual_amount'],
+                'increase_percentage' => (float) ($period['increase_pct'] ?? 0),
+            ]);
+        }
+    }
+
     protected function createLeaseForProperty(Property $property): void
     {
-        $cycle = $this->form['lease_payment_cycle'];
-        $installments = $this->calculateLeaseInstallmentsCount(
-            $this->form['lease_start_date'],
-            $this->form['lease_end_date'],
-            $cycle
-        );
+        if ($this->has_lease_escalation) {
+            $this->recomputeLeasePeriodAmounts();
+        }
+
+        $cycle        = $this->form['lease_payment_cycle'];
+        $totalAmount  = $this->calcLeaseTotalAmount();
+        $installments = $this->calcLeaseInstallmentsCount();
 
         $lease = PropertyLease::create([
             'property_id'           => $property->id,
@@ -224,31 +321,23 @@ class PropertyIndex extends Component
             'lease_contract_number' => $this->form['lease_contract_number'],
             'start_date'            => $this->form['lease_start_date'],
             'end_date'              => $this->form['lease_end_date'],
-            'total_amount'          => $this->calcLeaseTotalAmount(),
+            'total_amount'          => $totalAmount,
             'payment_cycle'         => $cycle,
             'installments_count'    => $installments,
             'status'                => 'active',
         ]);
 
-        // توليد جدول الدفعات تلقائياً
+        if ($this->has_lease_escalation) {
+            $this->savePropertyLeasePeriods($lease);
+        }
+
         $this->syncLeaseSchedules($lease);
     }
 
     protected function syncLeaseSchedules(PropertyLease $lease): void
     {
-        $installments = $this->calculateLeaseInstallmentsCount(
-            $lease->start_date,
-            $lease->end_date,
-            $lease->payment_cycle
-        );
-
-        $lease->update(['installments_count' => $installments]);
-
         $hasPaidSchedules = $lease->schedules()
-            ->where(fn ($query) => $query
-                ->where('paid_amount', '>', 0)
-                ->orWhereIn('status', ['paid', 'partial'])
-            )
+            ->where(fn ($q) => $q->where('paid_amount', '>', 0)->orWhereIn('status', ['paid', 'partial']))
             ->exists();
 
         if ($hasPaidSchedules) {
@@ -256,26 +345,66 @@ class PropertyIndex extends Component
         }
 
         $lease->schedules()->delete();
-
-        $totalAmount = round((float) $lease->total_amount, 2);
-        $baseAmount = round($totalAmount / $installments, 2);
-        $startDate = Carbon::parse($lease->start_date);
         $monthStep = $this->leaseCycleMonths($lease->payment_cycle);
 
-        for ($i = 1; $i <= $installments; $i++) {
-            $amount = $i === $installments
-                ? round($totalAmount - ($baseAmount * ($installments - 1)), 2)
-                : $baseAmount;
+        $periods = $lease->periods()->orderBy('period_no')->get();
 
-            PropertyLeaseSchedule::create([
-                'property_lease_id' => $lease->id,
-                'installment_no'    => $i,
-                'due_date'          => $startDate->copy()->addMonthsNoOverflow(($i - 1) * $monthStep)->toDateString(),
-                'amount'            => $amount,
-                'paid_amount'       => 0,
-                'remaining_amount'  => $amount,
-                'status'            => 'pending',
-            ]);
+        if ($periods->isNotEmpty()) {
+            // توليد جدول بالفترات المتصاعدة
+            $installmentNo   = 1;
+            $periodStartDate = Carbon::parse($lease->start_date);
+
+            foreach ($periods as $period) {
+                $durationMonths     = (int) $period->duration_months;
+                $annualAmount       = (float) $period->annual_amount;
+                $periodTotal        = round($annualAmount * ($durationMonths / 12), 2);
+                $periodInstallments = max(1, (int) floor($durationMonths / $monthStep));
+                $baseAmount         = round($periodTotal / $periodInstallments, 2);
+
+                for ($i = 1; $i <= $periodInstallments; $i++) {
+                    $amount = $i === $periodInstallments
+                        ? round($periodTotal - ($baseAmount * ($periodInstallments - 1)), 2)
+                        : $baseAmount;
+
+                    PropertyLeaseSchedule::create([
+                        'property_lease_id' => $lease->id,
+                        'installment_no'    => $installmentNo++,
+                        'due_date'          => $periodStartDate->copy()->addMonthsNoOverflow(($i - 1) * $monthStep)->toDateString(),
+                        'amount'            => $amount,
+                        'paid_amount'       => 0,
+                        'remaining_amount'  => $amount,
+                        'status'            => 'pending',
+                    ]);
+                }
+
+                $periodStartDate->addMonthsNoOverflow($durationMonths);
+            }
+
+            $lease->update(['installments_count' => $installmentNo - 1]);
+        } else {
+            // بدون تصاعد — الطريقة الأصلية
+            $totalAmount  = round((float) $lease->total_amount, 2);
+            $installments = $this->calculateLeaseInstallmentsCount($lease->start_date, $lease->end_date, $lease->payment_cycle);
+            $baseAmount   = round($totalAmount / $installments, 2);
+            $startDate    = Carbon::parse($lease->start_date);
+
+            $lease->update(['installments_count' => $installments]);
+
+            for ($i = 1; $i <= $installments; $i++) {
+                $amount = $i === $installments
+                    ? round($totalAmount - ($baseAmount * ($installments - 1)), 2)
+                    : $baseAmount;
+
+                PropertyLeaseSchedule::create([
+                    'property_lease_id' => $lease->id,
+                    'installment_no'    => $i,
+                    'due_date'          => $startDate->copy()->addMonthsNoOverflow(($i - 1) * $monthStep)->toDateString(),
+                    'amount'            => $amount,
+                    'paid_amount'       => 0,
+                    'remaining_amount'  => $amount,
+                    'status'            => 'pending',
+                ]);
+            }
         }
     }
 
@@ -344,8 +473,15 @@ class PropertyIndex extends Component
 
     private function calcLeaseTotalAmount(): float
     {
+        if ($this->has_lease_escalation && ! empty($this->lease_periods)) {
+            $total = 0.0;
+            foreach ($this->lease_periods as $p) {
+                $total += (float) ($p['annual_amount'] ?? 0) * ((int) ($p['duration_months'] ?? 0) / 12);
+            }
+            return round($total, 2);
+        }
         $form       = isset($this->form) ? $this->form : [];
-        $annualRent = (float)($form['lease_annual_rent'] ?? 0);
+        $annualRent = (float) ($form['lease_annual_rent'] ?? 0);
         $months     = $this->calcLeaseDurationMonths();
         if (! $annualRent || ! $months) return 0.0;
         return round($annualRent * ($months / 12), 2);
@@ -353,10 +489,20 @@ class PropertyIndex extends Component
 
     private function calcLeaseInstallmentsCount(): int
     {
-        $form   = isset($this->form) ? $this->form : [];
+        $form = isset($this->form) ? $this->form : [];
+        $step = $this->leaseCycleMonths($form['lease_payment_cycle'] ?? 'monthly');
+
+        if ($this->has_lease_escalation && ! empty($this->lease_periods)) {
+            $count = 0;
+            foreach ($this->lease_periods as $p) {
+                $months  = (int) ($p['duration_months'] ?? 0);
+                $count  += max(1, (int) floor($months / $step));
+            }
+            return $count;
+        }
+
         $months = $this->calcLeaseDurationMonths();
         if (! $months) return 0;
-        $step = $this->leaseCycleMonths($form['lease_payment_cycle'] ?? 'monthly');
         return max(1, (int) floor($months / $step));
     }
 

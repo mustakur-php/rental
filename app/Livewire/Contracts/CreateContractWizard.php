@@ -180,6 +180,17 @@ class CreateContractWizard extends Component
             'periods.*.duration_months.min' => 'مدة الفترة يجب أن تكون شهراً على الأقل',
             'periods.*.increase_pct.min'    => 'نسبة الزيادة لا يمكن أن تكون سالبة',
         ]);
+
+        if ($this->has_escalation) {
+            $contractMonths = $this->calcDurationMonths();
+            $periodsMonths  = array_sum(array_column($this->periods, 'duration_months'));
+            if ($periodsMonths !== $contractMonths) {
+                $this->addError('periods', "مجموع مدد الفترات ({$periodsMonths} شهر) يجب أن يساوي مدة العقد ({$contractMonths} شهر)");
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'periods' => "مجموع مدد الفترات ({$periodsMonths} شهر) يجب أن يساوي مدة العقد ({$contractMonths} شهر)",
+                ]);
+            }
+        }
     }
 
     // ─── إنشاء العقد ─────────────────────────────────

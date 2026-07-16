@@ -95,10 +95,23 @@ class PropertyIndex extends Component
         $this->showCreateModal = true;
     }
 
+    private function validateLeaseEscalationPeriods(): void
+    {
+        if (! $this->has_lease_escalation) return;
+        $leaseMonths   = $this->calcLeaseDurationMonths();
+        $periodsMonths = array_sum(array_column($this->lease_periods, 'duration_months'));
+        if ($periodsMonths !== $leaseMonths) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'lease_periods' => "مجموع مدد الفترات ({$periodsMonths} شهر) يجب أن يساوي مدة العقد ({$leaseMonths} شهر)",
+            ]);
+        }
+    }
+
     public function createProperty(): void
     {
         if (! $this->requirePermission('properties.create')) return;
         $this->validate($this->rules());
+        $this->validateLeaseEscalationPeriods();
 
         $property = Property::create([
             'company_id'     => $this->form['company_id'],
@@ -168,6 +181,7 @@ class PropertyIndex extends Component
     {
         if (! $this->requirePermission('properties.edit')) return;
         $this->validate($this->rules($this->editingPropertyId));
+        $this->validateLeaseEscalationPeriods();
         $property = Property::findOrFail($this->editingPropertyId);
 
         $property->update([

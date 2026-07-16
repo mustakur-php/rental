@@ -200,7 +200,7 @@
 
                     <div>
                         <label class="flex items-center gap-1 text-sm font-bold text-slate-700">
-                            الإيجار السنوي (ر.س) <span class="text-rose-500">*</span>
+                            {{ $has_escalation ? 'الإيجار السنوي الأساسي (السنة الأولى)' : 'الإيجار السنوي' }} (ر.س) <span class="text-rose-500">*</span>
                         </label>
                         <input type="number" step="0.01" wire:model.live="annual_rent" placeholder="0.00"
                             @class(['mt-2 w-full rounded-2xl border px-4 py-3 text-sm focus:outline-none focus:ring-2', 'border-rose-300 bg-rose-50 focus:ring-rose-300' => $errors->has('annual_rent'), 'border-slate-200 bg-slate-50 focus:ring-slate-300' => !$errors->has('annual_rent')])>
@@ -212,6 +212,92 @@
                         <input type="number" step="0.01" wire:model.live="vat_rate" placeholder="15"
                             class="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300">
                     </div>
+
+                    {{-- تصاعد الإيجار --}}
+                    <div class="md:col-span-2">
+                        <div class="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4">
+                            <div>
+                                <div class="text-sm font-bold text-slate-700">تصاعد الإيجار</div>
+                                <div class="text-xs text-slate-400 mt-0.5">تحديد فترات مختلفة بإيجار متصاعد مع كل فترة</div>
+                            </div>
+                            <button type="button" wire:click="$toggle('has_escalation')"
+                                @class([
+                                    'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none',
+                                    'bg-emerald-600' => $has_escalation,
+                                    'bg-slate-200'   => !$has_escalation,
+                                ])>
+                                <span @class([
+                                    'pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                                    'translate-x-5' => $has_escalation,
+                                    'translate-x-0' => !$has_escalation,
+                                ])></span>
+                            </button>
+                        </div>
+                    </div>
+
+                    @if($has_escalation)
+                    <div class="md:col-span-2 space-y-3">
+                        <div class="overflow-x-auto rounded-2xl border border-slate-200">
+                            <table class="w-full text-sm">
+                                <thead>
+                                    <tr class="bg-slate-100 text-slate-600 text-right">
+                                        <th class="px-4 py-3 font-bold">#</th>
+                                        <th class="px-4 py-3 font-bold">المدة (شهر)</th>
+                                        <th class="px-4 py-3 font-bold">نسبة الزيادة %</th>
+                                        <th class="px-4 py-3 font-bold">الإيجار السنوي</th>
+                                        <th class="px-4 py-3 font-bold">إجمالي الفترة</th>
+                                        <th class="px-4 py-3"></th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100">
+                                    @foreach($periods as $i => $period)
+                                    <tr wire:key="period-{{ $i }}" class="hover:bg-slate-50">
+                                        <td class="px-4 py-3 font-bold text-slate-400">{{ $i + 1 }}</td>
+                                        <td class="px-4 py-3">
+                                            <input type="number" min="1"
+                                                wire:model.live="periods.{{ $i }}.duration_months"
+                                                class="w-24 rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300 text-center">
+                                            @error("periods.{$i}.duration_months") <p class="text-xs text-rose-600 mt-1">{{ $message }}</p> @enderror
+                                        </td>
+                                        <td class="px-4 py-3">
+                                            @if($i === 0)
+                                                <span class="text-slate-400 text-xs px-3">—</span>
+                                            @else
+                                                <div class="flex items-center gap-1">
+                                                    <input type="number" min="0" step="0.01"
+                                                        wire:model.live="periods.{{ $i }}.increase_pct"
+                                                        class="w-24 rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300 text-center">
+                                                    <span class="text-slate-400 text-xs">%</span>
+                                                </div>
+                                                @error("periods.{$i}.increase_pct") <p class="text-xs text-rose-600 mt-1">{{ $message }}</p> @enderror
+                                            @endif
+                                        </td>
+                                        <td class="px-4 py-3 font-semibold text-slate-700">
+                                            {{ number_format($period['annual_amount'] ?? 0, 0) }} ر.س
+                                        </td>
+                                        <td class="px-4 py-3 text-emerald-700 font-bold">
+                                            {{ number_format(($period['annual_amount'] ?? 0) * ((int)($period['duration_months'] ?? 0) / 12), 0) }} ر.س
+                                        </td>
+                                        <td class="px-4 py-3">
+                                            @if(count($periods) > 1)
+                                            <button type="button" wire:click="removePeriod({{ $i }})"
+                                                class="rounded-full p-1 text-rose-400 hover:bg-rose-50 hover:text-rose-600 transition">
+                                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                                            </button>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                        <button type="button" wire:click="addPeriod"
+                            class="flex items-center gap-2 rounded-2xl border border-dashed border-emerald-300 bg-emerald-50 px-5 py-3 text-sm font-bold text-emerald-700 hover:bg-emerald-100 transition w-full justify-center">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                            إضافة فترة جديدة
+                        </button>
+                    </div>
+                    @endif
 
                     {{-- ملخص الحساب التلقائي --}}
                     @if($calculatedTotalAmount > 0)
@@ -321,10 +407,29 @@
                         <span class="text-slate-500">دورة الفوترة</span>
                         <span class="font-bold">{{ ['monthly' => 'شهري', 'two_months' => 'كل شهرين', 'quarterly' => 'ربع سنوي', 'semi_annually' => 'نصف سنوي', 'annually' => 'سنوي'][$billing_cycle] ?? $billing_cycle }}</span>
                     </div>
+                    @if($has_escalation && count($periods) > 0)
+                    <div class="border-b border-slate-200 pb-3">
+                        <div class="text-slate-500 mb-2">فترات الإيجار المتصاعد</div>
+                        <div class="space-y-1.5">
+                            @foreach($periods as $i => $p)
+                            <div class="flex items-center justify-between rounded-xl bg-slate-100 px-3 py-2 text-xs">
+                                <span class="text-slate-500">الفترة {{ $i + 1 }} — {{ $p['duration_months'] ?? 0 }} شهر</span>
+                                <div class="text-left space-x-2 rtl:space-x-reverse">
+                                    <span class="font-semibold text-slate-700">{{ number_format($p['annual_amount'] ?? 0, 0) }} ر.س/سنة</span>
+                                    @if($i > 0 && ($p['increase_pct'] ?? 0) > 0)
+                                        <span class="text-emerald-600">(+{{ $p['increase_pct'] }}%)</span>
+                                    @endif
+                                </div>
+                            </div>
+                            @endforeach
+                        </div>
+                    </div>
+                    @else
                     <div class="flex justify-between border-b border-slate-200 pb-3">
                         <span class="text-slate-500">الإيجار السنوي</span>
                         <span class="font-bold">{{ number_format($annual_rent, 0) }} ر.س</span>
                     </div>
+                    @endif
                     <div class="flex justify-between border-b border-slate-200 pb-3">
                         <span class="text-slate-500">مدة العقد</span>
                         <span class="font-bold">

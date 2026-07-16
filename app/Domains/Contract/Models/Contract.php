@@ -91,6 +91,11 @@ class Contract extends Model
         return $this->hasMany(Payment::class);
     }
 
+    public function periods(): HasMany
+    {
+        return $this->hasMany(ContractPeriod::class)->orderBy('period_no');
+    }
+
     public function attachments(): MorphMany
     {
         return $this->morphMany(Attachment::class, 'attachable');

@@ -4,6 +4,7 @@ namespace App\Domains\Contract\Actions;
 
 use App\Domains\Contract\Data\ContractData;
 use App\Domains\Contract\Models\Contract;
+use App\Domains\Contract\Models\ContractPeriod;
 use App\Domains\Payment\Models\PaymentSchedule;
 use App\Domains\Tenant\Models\Tenant;
 use App\Domains\Unit\Models\Unit;
@@ -65,7 +66,12 @@ class CreateContractAction
                 'notes' => $data->notes,
             ]);
 
-            $this->createPaymentSchedules($contract, $installmentsCount);
+            if (! empty($data->periods)) {
+                $this->saveContractPeriods($contract, $data->periods);
+                $this->createPaymentSchedulesFromPeriods($contract, $data->periods);
+            } else {
+                $this->createPaymentSchedules($contract, $installmentsCount);
+            }
 
             $unit->update(['status' => UnitStatus::Rented->value]);
 
@@ -118,6 +124,58 @@ class CreateContractAction
                 'remaining_amount' => $totalAmount,
                 'status' => PaymentScheduleStatus::Pending->value,
             ]);
+        }
+    }
+
+    private function saveContractPeriods(Contract $contract, array $periods): void
+    {
+        foreach ($periods as $i => $period) {
+            ContractPeriod::create([
+                'contract_id'         => $contract->id,
+                'period_no'           => $i + 1,
+                'duration_months'     => $period['duration_months'],
+                'annual_amount'       => $period['annual_amount'],
+                'increase_percentage' => $period['increase_percentage'],
+            ]);
+        }
+    }
+
+    private function createPaymentSchedulesFromPeriods(Contract $contract, array $periods): void
+    {
+        $installmentNo   = 1;
+        $periodStartDate = Carbon::parse($contract->start_date);
+        $monthStep       = $this->cycleMonths($contract->payment_cycle);
+        $vatRate         = (float) $contract->vat_rate;
+
+        foreach ($periods as $period) {
+            $durationMonths    = (int) $period['duration_months'];
+            $annualAmount      = (float) $period['annual_amount'];
+            $periodTotal       = round($annualAmount * ($durationMonths / 12), 2);
+            $periodInstallments = max(1, (int) floor($durationMonths / $monthStep));
+
+            $baseInstallment = round($periodTotal / $periodInstallments, 2);
+
+            for ($i = 1; $i <= $periodInstallments; $i++) {
+                $baseAmount = $i === $periodInstallments
+                    ? round($periodTotal - ($baseInstallment * ($periodInstallments - 1)), 2)
+                    : $baseInstallment;
+                $vatAmount   = round($baseAmount * ($vatRate / 100), 2);
+                $totalAmount = round($baseAmount + $vatAmount, 2);
+
+                PaymentSchedule::create([
+                    'contract_id'     => $contract->id,
+                    'installment_no'  => $installmentNo++,
+                    'due_date'        => $periodStartDate->copy()->addMonthsNoOverflow(($i - 1) * $monthStep)->toDateString(),
+                    'base_amount'     => $baseAmount,
+                    'vat_amount'      => $vatAmount,
+                    'total_amount'    => $totalAmount,
+                    'paid_amount'     => 0,
+                    'remaining_amount'=> $totalAmount,
+                    'status'          => PaymentScheduleStatus::Pending->value,
+                ]);
+            }
+
+            $periodStartDate->addMonthsNoOverflow($durationMonths);
         }
     }
 

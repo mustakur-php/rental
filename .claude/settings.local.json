@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(Get-ChildItem -Path \"D:\\\\rental\\\\app\\\\Domains\" -Directory)",
+      "Bash(del \"D:\\\\rental\\\\app\\\\Livewire\\\\Payments\\\\RegisterPaymentModal.php\")",
+      "Bash(del \"D:\\\\rental\\\\resources\\\\views\\\\livewire\\\\payments\\\\register-payment-modal.blade.php\")",
+      "Bash(php artisan *)",
+      "Bash(xargs grep -l -i \"contract\\\\|wizard\")",
+      "Bash(php -r \"echo PHP_VERSION;\")",
+      "Bash(python3 -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\('livewire:',d.get\\('require',{}\\).get\\('livewire/livewire','not found'\\)\\);print\\('laravel:',d.get\\('require',{}\\).get\\('laravel/framework','not found'\\)\\)\")",
+      "Bash(grep -v \"^$\")",
+      "Bash(cd /d D:\\\\rental)",
+      "Bash(php -l app/Domains/Company/Models/Company.php)",
+      "Bash(php -l app/Livewire/Properties/PropertyIndex.php)",
+      "Bash(php -l \"D:\\\\rental\\\\app\\\\Domains\\\\Company\\\\Models\\\\Company.php\")",
+      "Bash(php -l \"D:\\\\rental\\\\app\\\\Livewire\\\\Properties\\\\PropertyIndex.php\")",
+      "mcp__Claude_in_Chrome__tabs_context_mcp"
+    ]
+  }
+}

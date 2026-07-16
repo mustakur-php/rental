@@ -1,0 +1,197 @@
+@import 'tailwindcss';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+@source '../**/*.blade.php';
+@source '../**/*.js';
+
+@theme {
+    --font-sans: 'Cairo', ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ───────────────────────────────────────────────────────
+   نظام التصميم الموحد — Design System
+─────────────────────────────────────────────────────── */
+@layer components {
+
+    /* ── صفحة ── */
+    .erp-page {
+        @apply bg-slate-50 text-slate-900 antialiased;
+    }
+
+    .erp-container {
+        @apply mx-auto max-w-screen-xl p-6 lg:p-8;
+    }
+
+    /* ── بطاقات ── */
+    .erp-card {
+        @apply rounded-2xl border border-slate-200 bg-white shadow-sm;
+    }
+
+    .erp-card-hover {
+        @apply rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:border-slate-300 hover:shadow-md;
+    }
+
+    /* ── نصوص ── */
+    .erp-title {
+        @apply text-xl font-bold text-slate-900 lg:text-2xl;
+    }
+
+    .erp-subtitle {
+        @apply mt-1 text-sm text-slate-500;
+    }
+
+    .erp-muted {
+        @apply text-slate-500;
+    }
+
+    .erp-label {
+        @apply mb-1.5 block text-sm font-semibold text-slate-700;
+    }
+
+    /* ── أزرار ── */
+    .erp-btn-primary {
+        @apply inline-flex items-center justify-center gap-2 rounded-xl bg-rose-700 px-5 py-2.5 text-sm font-semibold text-white transition
+               hover:bg-rose-800 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50;
+    }
+
+    .erp-btn-soft {
+        @apply inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition
+               hover:bg-slate-50 hover:border-slate-300 active:scale-95 disabled:opacity-50;
+    }
+
+    .erp-btn-danger {
+        @apply inline-flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-5 py-2.5 text-sm font-semibold text-white transition
+               hover:bg-rose-700 active:scale-95 disabled:opacity-50;
+    }
+
+    .erp-btn-sm {
+        @apply px-3.5 py-1.5 text-xs;
+    }
+
+    /* ── حقول الإدخال ── */
+    .erp-input {
+        @apply w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-900
+               placeholder:text-slate-400 transition
+               focus:border-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-100;
+    }
+
+    .erp-input-error {
+        @apply border-rose-300 bg-rose-50 focus:border-rose-400 focus:ring-rose-100;
+    }
+
+    .erp-select {
+        @apply w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 transition
+               focus:border-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-100;
+    }
+
+    .erp-textarea {
+        @apply w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-900
+               placeholder:text-slate-400 transition
+               focus:border-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-100;
+    }
+
+    /* ── جداول ── */
+    .erp-table {
+        @apply w-full text-sm;
+    }
+
+    .erp-table thead {
+        @apply border-b border-slate-100 bg-slate-50;
+    }
+
+    .erp-table thead th {
+        @apply px-5 py-3 text-right text-xs font-bold text-slate-500;
+    }
+
+    .erp-table tbody {
+        @apply divide-y divide-slate-50;
+    }
+
+    .erp-table tbody tr {
+        @apply transition hover:bg-slate-50;
+    }
+
+    .erp-table tbody td {
+        @apply px-5 py-3.5;
+    }
+
+    /* ── شارات الحالة ── */
+    .erp-badge {
+        @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold;
+    }
+
+    .erp-badge-green  { @apply bg-emerald-50 text-emerald-700; }
+    .erp-badge-red    { @apply bg-rose-50 text-rose-700; }
+    .erp-badge-amber  { @apply bg-amber-50 text-amber-700; }
+    .erp-badge-blue   { @apply bg-sky-50 text-sky-700; }
+    .erp-badge-purple { @apply bg-purple-50 text-purple-700; }
+    .erp-badge-slate  { @apply bg-slate-100 text-slate-600; }
+
+    /* ── فواصل ── */
+    .erp-divider {
+        @apply border-t border-slate-100;
+    }
+
+    /* ── حالة فارغة ── */
+    .erp-empty {
+        @apply flex flex-col items-center justify-center py-16 text-center;
+    }
+
+    /* ── شريط الـ sidebar ── */
+    .erp-nav-link {
+        @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-rose-200 transition
+               hover:bg-rose-800/50 hover:text-white;
+    }
+
+    .erp-nav-link-active {
+        @apply bg-rose-600 text-white hover:bg-rose-500 hover:text-white;
+    }
+
+    /* ── مودال ── */
+    .erp-modal-overlay {
+        @apply fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm;
+    }
+
+    .erp-modal-box {
+        @apply w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl;
+    }
+
+    .erp-modal-header {
+        @apply flex items-center justify-between border-b border-slate-100 px-6 py-4;
+    }
+
+    .erp-modal-body {
+        @apply p-6;
+    }
+
+    .erp-modal-footer {
+        @apply flex items-center justify-end gap-3 border-t border-slate-100 px-6 py-4;
+    }
+
+    /* ── KPI Cards ── */
+    .erp-kpi {
+        @apply rounded-2xl border border-slate-200 bg-white p-5 shadow-sm;
+    }
+
+    /* ── تنبيهات ── */
+    .erp-alert-success { @apply rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800; }
+    .erp-alert-danger  { @apply rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800; }
+    .erp-alert-warning { @apply rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800; }
+    .erp-alert-info    { @apply rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-800; }
+}
+
+/* ───────────────────────────────────────────────────────
+   تحسينات عامة
+─────────────────────────────────────────────────────── */
+* {
+    -webkit-font-smoothing: antialiased;
+}
+
+/* إخفاء عنصر Alpine حتى يتهيأ */
+[x-cloak] { display: none !important; }
+
+/* تخصيص Pagination */
+nav[aria-label="Pagination"] {
+    @apply flex items-center justify-center gap-1;
+}

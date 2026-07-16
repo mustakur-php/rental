@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تصميم — عرض الخريطة</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Cairo', sans-serif; }
+
+        /* Pin animation */
+        @keyframes ping-once {
+            0%   { transform: scale(1);   opacity: 1; }
+            60%  { transform: scale(1.6); opacity: 0.4; }
+            100% { transform: scale(1);   opacity: 1; }
+        }
+        .pin-pulse { animation: ping-once 0.4s ease-out; }
+
+        /* Floor plan image placeholder */
+        .floor-plan-bg {
+            background-color: #f1f5f9;
+            background-image:
+                linear-gradient(rgba(148,163,184,0.3) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(148,163,184,0.3) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+
+        /* Draggable pin */
+        .unit-pin {
+            position: absolute;
+            transform: translate(-50%, -100%);
+            cursor: grab;
+            transition: filter 0.15s;
+            user-select: none;
+        }
+        .unit-pin:hover { filter: brightness(1.1) drop-shadow(0 4px 8px rgba(0,0,0,0.3)); z-index: 20; }
+        .unit-pin.dragging { cursor: grabbing; z-index: 50; filter: drop-shadow(0 8px 16px rgba(0,0,0,0.4)); }
+
+        /* Sidebar unit item */
+        .unplaced-item {
+            cursor: grab;
+        }
+        .unplaced-item:hover { background: #f8fafc; }
+
+        /* Popup */
+        .pin-popup {
+            position: absolute;
+            transform: translate(-50%, calc(-100% - 52px));
+            z-index: 30;
+            min-width: 180px;
+            pointer-events: none;
+        }
+        .pin-popup::after {
+            content: '';
+            position: absolute;
+            bottom: -6px;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 6px solid transparent;
+            border-top-color: white;
+            border-bottom: 0;
+        }
+
+        /* Tab states */
+        .tab-inactive { color: #64748b; }
+        .tab-inactive:hover { color: #1e293b; }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen">
+
+<!-- ═══════════════════════════ MOCKUP LABEL ═══════════════════════════ -->
+<div class="fixed top-3 left-1/2 -translate-x-1/2 z-[100] rounded-full bg-rose-700 px-4 py-1.5 text-xs font-bold text-white shadow-lg">
+    تصميم تجريبي — غير وظيفي
+</div>
+
+<!-- ═══════════════════════════ LAYOUT ═══════════════════════════ -->
+<div class="flex min-h-screen">
+
+    <!-- Sidebar (مختصر للتوضيح) -->
+    <aside class="hidden w-56 shrink-0 bg-rose-950 lg:block">
+        <div class="p-4">
+            <div class="mb-6 rounded-2xl bg-rose-900/60 p-4 text-white">
+                <div class="font-bold text-sm">Rental ERP</div>
+                <div class="mt-0.5 text-[10px] text-rose-300">Premium Property Management</div>
+            </div>
+            <nav class="space-y-1 text-sm">
+                <a class="flex items-center gap-2 rounded-xl px-3 py-2 text-rose-200 hover:bg-rose-800/50">🏠 لوحة التحكم</a>
+                <a class="flex items-center gap-2 rounded-xl px-3 py-2 text-rose-200 hover:bg-rose-800/50">🏢 الشركات</a>
+                <a class="flex items-center gap-2 rounded-xl bg-rose-800 px-3 py-2 font-bold text-white">🏗️ العقارات</a>
+                <a class="flex items-center gap-2 rounded-xl px-3 py-2 text-rose-200 hover:bg-rose-800/50">🗂️ الوحدات</a>
+                <a class="flex items-center gap-2 rounded-xl px-3 py-2 text-rose-200 hover:bg-rose-800/50">👥 المستأجرون</a>
+                <a class="flex items-center gap-2 rounded-xl px-3 py-2 text-rose-200 hover:bg-rose-800/50">📄 العقود</a>
+            </nav>
+        </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="flex-1 space-y-5 p-6 pb-10">
+
+        <!-- ══ رأس الصفحة ══ -->
+        <div class="rounded-3xl bg-white p-6 shadow-sm">
+            <div class="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                    <a class="text-sm font-bold text-slate-400 hover:text-rose-700">← العودة للعقارات</a>
+                    <div class="mt-3 text-xs font-bold text-slate-400">PROP-0001</div>
+                    <h1 class="mt-0.5 text-3xl font-black text-slate-900">مجمع النور التجاري</h1>
+                    <p class="mt-1 text-sm text-slate-500">الرياض — حي العليا</p>
+                </div>
+                <button class="rounded-2xl bg-rose-700 px-5 py-2.5 text-sm font-bold text-white shadow hover:bg-rose-800">+ إضافة وحدة</button>
+            </div>
+            <!-- KPIs -->
+            <div class="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+                <div class="rounded-2xl bg-slate-50 p-4 text-center">
+                    <div class="text-2xl font-black text-slate-800">12</div>
+                    <div class="mt-0.5 text-xs text-slate-500">إجمالي الوحدات</div>
+                </div>
+                <div class="rounded-2xl bg-rose-50 p-4 text-center">
+                    <div class="text-2xl font-black text-rose-700">8</div>
+                    <div class="mt-0.5 text-xs text-slate-500">المؤجرة</div>
+                </div>
+                <div class="rounded-2xl bg-emerald-50 p-4 text-center">
+                    <div class="text-2xl font-black text-emerald-700">3</div>
+                    <div class="mt-0.5 text-xs text-slate-500">الشاغرة</div>
+                </div>
+                <div class="rounded-2xl bg-amber-50 p-4 text-center">
+                    <div class="text-2xl font-black text-amber-700">1</div>
+                    <div class="mt-0.5 text-xs text-slate-500">تحت الصيانة</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══ شريط الفلترة + تبديل العرض ══ -->
+        <div class="rounded-3xl bg-white p-4 shadow-sm">
+            <div class="flex flex-wrap items-center gap-3">
+                <input type="text" placeholder="بحث في الوحدات..."
+                    class="flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm focus:outline-none focus:border-rose-300"
+                    value="">
+                <select class="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:outline-none">
+                    <option>كل الحالات</option>
+                    <option>شاغرة</option>
+                    <option>مؤجرة</option>
+                </select>
+                <!-- View switcher -->
+                <div class="inline-flex rounded-2xl bg-slate-100 p-1 text-sm font-semibold">
+                    <button class="rounded-xl px-4 py-2 text-slate-500 hover:text-slate-700" onclick="switchView('cards',this)">كروت</button>
+                    <button class="rounded-xl px-4 py-2 text-slate-500 hover:text-slate-700" onclick="switchView('table',this)">جدول</button>
+                    <button id="tab-map" class="rounded-xl bg-white px-4 py-2 text-slate-900 shadow" onclick="switchView('map',this)">🗺️ خريطة</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══ MAP VIEW ══ -->
+        <div id="view-map" class="rounded-3xl bg-white shadow-sm overflow-hidden">
+
+            <!-- Toolbar -->
+            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-3.5">
+                <div class="flex items-center gap-2">
+                    <!-- Upload button -->
+                    <button onclick="toggleUploadMode()" id="btn-upload"
+                        class="inline-flex items-center gap-2 rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:border-rose-300 hover:text-rose-700 transition">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                        </svg>
+                        رفع مخطط / صورة جوية
+                    </button>
+
+                    <!-- Type selector (shows after upload) -->
+                    <div id="type-selector" class="hidden items-center gap-2 rounded-2xl bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600">
+                        <span>نوع الصورة:</span>
+                        <label class="flex cursor-pointer items-center gap-1.5">
+                            <input type="radio" name="floortype" value="floor_plan" checked class="accent-rose-600"> مخطط معماري
+                        </label>
+                        <label class="flex cursor-pointer items-center gap-1.5">
+                            <input type="radio" name="floortype" value="satellite" class="accent-rose-600"> صورة جوية
+                        </label>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <!-- Legend -->
+                    <div class="hidden items-center gap-3 text-xs font-semibold md:flex">
+                        <span class="flex items-center gap-1.5"><span class="h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-emerald-200"></span>شاغرة</span>
+                        <span class="flex items-center gap-1.5"><span class="h-3 w-3 rounded-full bg-rose-600 ring-2 ring-rose-200"></span>مؤجرة</span>
+                        <span class="flex items-center gap-1.5"><span class="h-3 w-3 rounded-full bg-amber-400 ring-2 ring-amber-200"></span>صيانة</span>
+                        <span class="flex items-center gap-1.5"><span class="h-3 w-3 rounded-full bg-blue-500 ring-2 ring-blue-200"></span>محجوزة</span>
+                    </div>
+                    <!-- Edit mode toggle -->
+                    <button onclick="toggleEditMode()" id="btn-edit"
+                        class="inline-flex items-center gap-2 rounded-2xl bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700 transition">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                        </svg>
+                        <span id="edit-label">وضع التعديل</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Main content: floor plan + sidebar -->
+            <div class="flex" style="min-height:520px">
+
+                <!-- ── Floor Plan Area ── -->
+                <div class="relative flex-1 floor-plan-bg select-none overflow-hidden" id="floor-plan-area"
+                     onclick="handleMapClick(event)">
+
+                    <!-- Floor plan image placeholder -->
+                    <div class="absolute inset-0 flex items-center justify-center pointer-events-none" id="upload-placeholder">
+                        <div class="text-center" id="upload-cta">
+                            <div class="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-3xl bg-slate-200 text-3xl">🏗️</div>
+                            <p class="font-bold text-slate-600">ارفع صورة المبنى أو المخطط</p>
+                            <p class="mt-1 text-xs text-slate-400">JPG · PNG · PDF</p>
+                            <button onclick="simulateUpload()" class="mt-4 rounded-2xl bg-rose-700 px-5 py-2.5 text-sm font-bold text-white pointer-events-auto hover:bg-rose-800">
+                                محاكاة الرفع ←
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Simulated floor plan (hidden until upload) -->
+                    <div id="floor-plan-img" class="absolute inset-0 hidden">
+                        <!-- SVG floor plan mockup -->
+                        <svg width="100%" height="100%" viewBox="0 0 900 520" xmlns="http://www.w3.org/2000/svg" style="opacity:0.18">
+                            <!-- Building outline -->
+                            <rect x="40" y="30" width="820" height="460" fill="none" stroke="#334155" stroke-width="4"/>
+                            <!-- Floors dividers -->
+                            <line x1="40" y1="183" x2="860" y2="183" stroke="#334155" stroke-width="2" stroke-dasharray="8,4"/>
+                            <line x1="40" y1="336" x2="860" y2="336" stroke="#334155" stroke-width="2" stroke-dasharray="8,4"/>
+                            <!-- Vertical dividers floor 3 -->
+                            <line x1="220" y1="30" x2="220" y2="183" stroke="#94a3b8" stroke-width="1.5"/>
+                            <line x1="400" y1="30" x2="400" y2="183" stroke="#94a3b8" stroke-width="1.5"/>
+                            <line x1="580" y1="30" x2="580" y2="183" stroke="#94a3b8" stroke-width="1.5"/>
+                            <line x1="740" y1="30" x2="740" y2="183" stroke="#94a3b8" stroke-width="1.5"/>
+                            <!-- Vertical dividers floor 2 -->
+                            <line x1="310" y1="183" x2="310" y2="336" stroke="#94a3b8" stroke-width="1.5"/>
+                            <line x1="580" y1="183" x2="580" y2="336" stroke="#94a3b8" stroke-width="1.5"/>
+                            <!-- Vertical dividers floor 1 -->
+                            <line x1="200" y1="336" x2="200" y2="490" stroke="#94a3b8" stroke-width="1.5"/>
+                            <line x1="380" y1="336" x2="380" y2="490" stroke="#94a3b8" stroke-width="1.5"/>
+                            <line x1="560" y1="336" x2="560" y2="490" stroke="#94a3b8" stroke-width="1.5"/>
+                            <line x1="720" y1="336" x2="720" y2="490" stroke="#94a3b8" stroke-width="1.5"/>
+                            <!-- Floor labels -->
+                            <text x="860" y="110" text-anchor="end" fill="#64748b" font-size="14" font-family="Cairo">الطابق 3</text>
+                            <text x="860" y="263" text-anchor="end" fill="#64748b" font-size="14" font-family="Cairo">الطابق 2</text>
+                            <text x="860" y="416" text-anchor="end" fill="#64748b" font-size="14" font-family="Cairo">الطابق 1</text>
+                        </svg>
+                    </div>
+
+                    <!-- Edit mode overlay hint -->
+                    <div id="edit-hint" class="absolute bottom-4 left-1/2 hidden -translate-x-1/2 rounded-2xl bg-slate-900/80 px-4 py-2 text-xs font-semibold text-white backdrop-blur-sm">
+                        🖱️ اسحب الـ Pins لتغيير مواقع الوحدات · انقر لإضافة وحدة من القائمة
+                    </div>
+
+                    <!-- ─── PINS ─── -->
+                    <!-- Rented -->
+                    <div class="unit-pin" id="pin-101" style="left:22%;top:82%" onmousedown="startDrag(event,'pin-101')">
+                        <div class="relative flex flex-col items-center">
+                            <div class="rounded-2xl bg-rose-600 px-3 py-1.5 text-xs font-black text-white shadow-lg ring-2 ring-white whitespace-nowrap"
+                                 onmouseenter="showPopup('pop-101')" onmouseleave="hidePopup('pop-101')">
+                                محل 101
+                            </div>
+                            <div class="h-2 w-0.5 bg-rose-600"></div>
+                            <div class="h-1.5 w-1.5 rounded-full bg-rose-600 ring-2 ring-white"></div>
+                            <!-- Popup -->
+                            <div id="pop-101" class="pin-popup hidden absolute" style="bottom:calc(100% + 4px); left:50%">
+                                <div class="rounded-2xl bg-white px-4 py-3 shadow-xl border border-slate-100 text-right">
+                                    <div class="font-black text-slate-800">محل 101</div>
+                                    <div class="mt-1 flex items-center gap-1.5 text-xs text-rose-600 font-semibold">
+                                        <span class="h-2 w-2 rounded-full bg-rose-500"></span> مؤجرة
+                                    </div>
+                                    <div class="mt-2 space-y-0.5 text-xs text-slate-500">
+                                        <div>المستأجر: شركة الفجر</div>
+                                        <div>العقد: حتى 2026/12/31</div>
+                                        <div>المساحة: 85 م²</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="unit-pin" id="pin-102" style="left:41%;top:82%" onmousedown="startDrag(event,'pin-102')">
+                        <div class="relative flex flex-col items-center">
+                            <div class="rounded-2xl bg-rose-600 px-3 py-1.5 text-xs font-black text-white shadow-lg ring-2 ring-white whitespace-nowrap"
+                                 onmouseenter="showPopup('pop-102')" onmouseleave="hidePopup('pop-102')">
+                                محل 102
+                            </div>
+                            <div class="h-2 w-0.5 bg-rose-600"></div>
+                            <div class="h-1.5 w-1.5 rounded-full bg-rose-600 ring-2 ring-white"></div>
+                            <div id="pop-102" class="pin-popup hidden absolute" style="bottom:calc(100% + 4px); left:50%">
+                                <div class="rounded-2xl bg-white px-4 py-3 shadow-xl border border-slate-100 text-right">
+                                    <div class="font-black text-slate-800">محل 102</div>
+                                    <div class="mt-1 flex items-center gap-1.5 text-xs text-rose-600 font-semibold">
+                                        <span class="h-2 w-2 rounded-full bg-rose-500"></span> مؤجرة
+                                    </div>
+                                    <div class="mt-2 text-xs text-slate-500">المستأجر: مؤسسة النور</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Maintenance -->
+                    <div class="unit-pin" id="pin-103" style="left:61%;top:82%">
+                        <div class="relative flex flex-col items-center">
+                            <div class="rounded-2xl bg-amber-400 px-3 py-1.5 text-xs font-black text-slate-800 shadow-lg ring-2 ring-white whitespace-nowrap">
+                                محل 103 🔧
+                            </div>
+                            <div class="h-2 w-0.5 bg-amber-400"></div>
+                            <div class="h-1.5 w-1.5 rounded-full bg-amber-400 ring-2 ring-white"></div>
+                        </div>
+                    </div>
+
+                    <!-- Vacant -->
+                    <div class="unit-pin" id="pin-104" style="left:79%;top:82%">
+                        <div class="relative flex flex-col items-center">
+                            <div class="rounded-2xl bg-emerald-500 px-3 py-1.5 text-xs font-black text-white shadow-lg ring-2 ring-white whitespace-nowrap">
+                                محل 104
+                            </div>
+                            <div class="h-2 w-0.5 bg-emerald-500"></div>
+                            <div class="h-1.5 w-1.5 rounded-full bg-emerald-500 ring-2 ring-white"></div>
+                        </div>
+                    </div>
+
+                    <!-- Floor 2 -->
+                    <div class="unit-pin" id="pin-201" style="left:33%;top:55%">
+                        <div class="relative flex flex-col items-center">
+                            <div class="rounded-2xl bg-rose-600 px-3 py-1.5 text-xs font-black text-white shadow-lg ring-2 ring-white whitespace-nowrap">
+                                مكتب 201
+                            </div>
+                            <div class="h-2 w-0.5 bg-rose-600"></div>
+                            <div class="h-1.5 w-1.5 rounded-full bg-rose-600 ring-2 ring-white"></div>
+                        </div>
+                    </div>
+
+                    <div class="unit-pin" id="pin-202" style="left:63%;top:55%">
+                        <div class="relative flex flex-col items-center">
+                            <div class="rounded-2xl bg-emerald-500 px-3 py-1.5 text-xs font-black text-white shadow-lg ring-2 ring-white whitespace-nowrap">
+                                مكتب 202
+                            </div>
+                            <div class="h-2 w-0.5 bg-emerald-500"></div>
+                            <div class="h-1.5 w-1.5 rounded-full bg-emerald-500 ring-2 ring-white"></div>
+                        </div>
+                    </div>
+
+                    <!-- Floor 3 -->
+                    <div class="unit-pin" id="pin-301" style="left:24%;top:26%">
+                        <div class="relative flex flex-col items-center">
+                            <div class="rounded-2xl bg-rose-600 px-3 py-1.5 text-xs font-black text-white shadow-lg ring-2 ring-white whitespace-nowrap">
+                                شقة 301
+                            </div>
+                            <div class="h-2 w-0.5 bg-rose-600"></div>
+                            <div class="h-1.5 w-1.5 rounded-full bg-rose-600 ring-2 ring-white"></div>
+                        </div>
+                    </div>
+
+                    <div class="unit-pin" id="pin-302" style="left:50%;top:26%">
+                        <div class="relative flex flex-col items-center">
+                            <div class="rounded-2xl bg-rose-600 px-3 py-1.5 text-xs font-black text-white shadow-lg ring-2 ring-white whitespace-nowrap">
+                                شقة 302
+                            </div>
+                            <div class="h-2 w-0.5 bg-rose-600"></div>
+                            <div class="h-1.5 w-1.5 rounded-full bg-rose-600 ring-2 ring-white"></div>
+                        </div>
+                    </div>
+
+                    <div class="unit-pin" id="pin-303" style="left:74%;top:26%">
+                        <div class="relative flex flex-col items-center">
+                            <div class="rounded-2xl bg-blue-500 px-3 py-1.5 text-xs font-black text-white shadow-lg ring-2 ring-white whitespace-nowrap">
+                                شقة 303
+                            </div>
+                            <div class="h-2 w-0.5 bg-blue-500"></div>
+                            <div class="h-1.5 w-1.5 rounded-full bg-blue-500 ring-2 ring-white"></div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- ── Sidebar: Unplaced units ── -->
+                <div class="hidden w-52 shrink-0 border-r border-slate-100 lg:block" id="unplaced-sidebar">
+                    <div class="sticky top-0 border-b border-slate-100 bg-slate-50 px-4 py-3">
+                        <p class="text-xs font-black uppercase tracking-wide text-slate-400">وحدات بدون موقع</p>
+                        <p class="mt-0.5 text-[10px] text-slate-400">اسحبها وأفلتها على الخريطة</p>
+                    </div>
+                    <div class="divide-y divide-slate-50 p-2 space-y-1">
+                        <div class="unplaced-item flex cursor-grab items-center gap-3 rounded-2xl px-3 py-2.5 text-sm hover:bg-slate-50 transition">
+                            <span class="flex h-7 w-7 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 text-xs font-black">شاغ</span>
+                            <div>
+                                <div class="font-bold text-slate-700 text-xs">مستودع 001</div>
+                                <div class="text-[10px] text-slate-400">120 م²</div>
+                            </div>
+                            <svg class="mr-auto h-4 w-4 text-slate-300" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M4 8h16M4 16h16"/>
+                            </svg>
+                        </div>
+                        <div class="unplaced-item flex cursor-grab items-center gap-3 rounded-2xl px-3 py-2.5 text-sm hover:bg-slate-50 transition">
+                            <span class="flex h-7 w-7 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 text-xs font-black">شاغ</span>
+                            <div>
+                                <div class="font-bold text-slate-700 text-xs">محل 105</div>
+                                <div class="text-[10px] text-slate-400">45 م²</div>
+                            </div>
+                            <svg class="mr-auto h-4 w-4 text-slate-300" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M4 8h16M4 16h16"/>
+                            </svg>
+                        </div>
+                        <div class="unplaced-item flex cursor-grab items-center gap-3 rounded-2xl px-3 py-2.5 text-sm hover:bg-slate-50 transition">
+                            <span class="flex h-7 w-7 items-center justify-center rounded-xl bg-rose-100 text-rose-600 text-xs font-black">مؤج</span>
+                            <div>
+                                <div class="font-bold text-slate-700 text-xs">مكتب 203</div>
+                                <div class="text-[10px] text-slate-400">60 م²</div>
+                            </div>
+                            <svg class="mr-auto h-4 w-4 text-slate-300" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M4 8h16M4 16h16"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <!-- Save positions button (edit mode only) -->
+                    <div id="save-positions-btn" class="hidden p-3 border-t border-slate-100">
+                        <button class="w-full rounded-2xl bg-emerald-600 py-2.5 text-xs font-black text-white hover:bg-emerald-700">
+                            ✓ حفظ المواقع
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- ═══ Upload Modal Mockup ═══ -->
+        <div id="upload-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+            <div class="w-full max-w-md rounded-3xl bg-white shadow-2xl">
+                <div class="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+                    <h2 class="text-lg font-extrabold text-slate-800">رفع صورة المبنى</h2>
+                    <button onclick="closeUploadModal()" class="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100">✕</button>
+                </div>
+                <div class="p-6 space-y-4">
+                    <!-- Type selector -->
+                    <div>
+                        <label class="mb-2 block text-sm font-bold text-slate-700">نوع الصورة</label>
+                        <div class="grid grid-cols-2 gap-3">
+                            <label class="flex cursor-pointer items-center gap-3 rounded-2xl border-2 border-rose-600 bg-rose-50 p-4">
+                                <input type="radio" name="imgtype" value="floor" checked class="accent-rose-600">
+                                <div>
+                                    <div class="font-bold text-sm">🏗️ مخطط معماري</div>
+                                    <div class="text-xs text-slate-400">تصميم الطوابق</div>
+                                </div>
+                            </label>
+                            <label class="flex cursor-pointer items-center gap-3 rounded-2xl border-2 border-slate-200 p-4 hover:border-slate-300">
+                                <input type="radio" name="imgtype" value="satellite" class="accent-rose-600">
+                                <div>
+                                    <div class="font-bold text-sm">🛰️ صورة جوية</div>
+                                    <div class="text-xs text-slate-400">صورة الموقع</div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+                    <!-- Drop zone -->
+                    <div class="flex flex-col items-center justify-center rounded-3xl border-2 border-dashed border-slate-300 bg-slate-50 py-10 text-center hover:border-rose-400 hover:bg-rose-50 transition cursor-pointer">
+                        <div class="text-3xl">📁</div>
+                        <p class="mt-2 font-semibold text-slate-600">اسحب الصورة هنا</p>
+                        <p class="text-xs text-slate-400">أو انقر للاختيار — JPG · PNG · PDF</p>
+                        <button onclick="simulateUpload();closeUploadModal()" class="mt-4 rounded-2xl bg-rose-700 px-5 py-2 text-sm font-bold text-white">اختر ملفاً</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══ Bottom note ═══ -->
+        <div class="rounded-2xl border border-dashed border-slate-300 bg-white/60 px-5 py-4 text-center text-xs text-slate-400">
+            هذا التصميم تجريبي — الـ Pins قابلة للسحب · جرّب وضع التعديل وانقر "محاكاة الرفع"
+        </div>
+
+    </main>
+</div>
+
+<script>
+    let editMode = false;
+    let dragging = null;
+    let dragOffsetX = 0, dragOffsetY = 0;
+    let uploadDone = false;
+
+    // ─── View switch
+    function switchView(mode, el) {
+        document.querySelectorAll('.inline-flex button').forEach(b => {
+            b.classList.remove('bg-white','shadow','text-slate-900');
+            b.classList.add('text-slate-500');
+        });
+        el.classList.add('bg-white','shadow','text-slate-900');
+        el.classList.remove('text-slate-500');
+    }
+
+    // ─── Upload simulation
+    function simulateUpload() {
+        uploadDone = true;
+        document.getElementById('upload-placeholder').style.display = 'none';
+        document.getElementById('floor-plan-img').classList.remove('hidden');
+        document.getElementById('type-selector').classList.remove('hidden');
+        document.getElementById('type-selector').classList.add('flex');
+        document.getElementById('btn-upload').innerHTML =
+            '<svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg> تغيير الصورة';
+    }
+
+    // ─── Upload modal
+    function toggleUploadMode() {
+        document.getElementById('upload-modal').classList.remove('hidden');
+        document.getElementById('upload-modal').classList.add('flex');
+    }
+    function closeUploadModal() {
+        document.getElementById('upload-modal').classList.add('hidden');
+        document.getElementById('upload-modal').classList.remove('flex');
+    }
+
+    // ─── Edit mode
+    function toggleEditMode() {
+        editMode = !editMode;
+        const btn  = document.getElementById('btn-edit');
+        const hint = document.getElementById('edit-hint');
+        const saveBtn = document.getElementById('save-positions-btn');
+
+        if (editMode) {
+            btn.classList.remove('bg-slate-800');
+            btn.classList.add('bg-rose-700');
+            document.getElementById('edit-label').textContent = 'إنهاء التعديل';
+            hint.classList.remove('hidden');
+            hint.classList.add('flex');
+            saveBtn.classList.remove('hidden');
+            // Make pins look draggable
+            document.querySelectorAll('.unit-pin').forEach(p => {
+                p.style.cursor = 'grab';
+                p.style.outline = '2px dashed rgba(99,102,241,0.4)';
+                p.style.borderRadius = '12px';
+                p.style.padding = '4px';
+            });
+        } else {
+            btn.classList.add('bg-slate-800');
+            btn.classList.remove('bg-rose-700');
+            document.getElementById('edit-label').textContent = 'وضع التعديل';
+            hint.classList.add('hidden');
+            hint.classList.remove('flex');
+            saveBtn.classList.add('hidden');
+            document.querySelectorAll('.unit-pin').forEach(p => {
+                p.style.cursor = 'pointer';
+                p.style.outline = 'none';
+                p.style.padding = '0';
+            });
+        }
+    }
+
+    // ─── Drag & Drop
+    function startDrag(e, pinId) {
+        if (!editMode) return;
+        e.preventDefault();
+        dragging = pinId;
+        const pin = document.getElementById(pinId);
+        const area = document.getElementById('floor-plan-area');
+        const rect = area.getBoundingClientRect();
+        const pinRect = pin.getBoundingClientRect();
+        dragOffsetX = e.clientX - (pinRect.left + pinRect.width/2 - rect.left);
+        dragOffsetY = e.clientY - (pinRect.bottom - rect.top);
+        pin.classList.add('dragging');
+    }
+
+    document.addEventListener('mousemove', (e) => {
+        if (!dragging) return;
+        const pin  = document.getElementById(dragging);
+        const area = document.getElementById('floor-plan-area');
+        const rect = area.getBoundingClientRect();
+        let x = ((e.clientX - rect.left - dragOffsetX) / rect.width)  * 100;
+        let y = ((e.clientY - rect.top  - dragOffsetY) / rect.height) * 100;
+        x = Math.max(2, Math.min(98, x));
+        y = Math.max(8, Math.min(95, y));
+        pin.style.left = x + '%';
+        pin.style.top  = y + '%';
+    });
+
+    document.addEventListener('mouseup', () => {
+        if (dragging) {
+            document.getElementById(dragging).classList.remove('dragging');
+            dragging = null;
+            // In real app: wire:call('updateUnitPosition', id, x, y)
+        }
+    });
+
+    // ─── Popups
+    function showPopup(id) {
+        if (editMode) return;
+        document.getElementById(id)?.classList.remove('hidden');
+    }
+    function hidePopup(id) {
+        document.getElementById(id)?.classList.add('hidden');
+    }
+
+    // ─── Map click hint
+    function handleMapClick(e) {
+        if (!editMode || !uploadDone) return;
+        if (e.target === document.getElementById('floor-plan-area') ||
+            e.target === document.getElementById('floor-plan-img')) {
+            // Would open unit placement picker in real app
+            const hint = document.createElement('div');
+            hint.className = 'absolute text-[10px] bg-slate-800 text-white rounded-xl px-3 py-1.5 font-bold pointer-events-none';
+            hint.style.left = ((e.offsetX / e.target.offsetWidth)*100) + '%';
+            hint.style.top  = ((e.offsetY / e.target.offsetHeight)*100) + '%';
+            hint.textContent = '← اختر وحدة من القائمة';
+            document.getElementById('floor-plan-area').appendChild(hint);
+            setTimeout(() => hint.remove(), 1800);
+        }
+    }
+</script>
+</body>
+</html>

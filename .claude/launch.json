@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "map-mockup",
+      "runtimeExecutable": "php",
+      "runtimeArgs": ["-S", "localhost:7788", "-t", "public/mockup"],
+      "port": 7788
+    }
+  ]
+}

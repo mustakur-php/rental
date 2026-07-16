@@ -59,13 +59,14 @@
                     <th class="px-5 py-3"></th>
                 </tr>
             </thead>
-            <tbody class="divide-y divide-slate-50">
+            <tbody class="divide-y divide-slate-50" x-data="{ openSchedule: null }">
                 @foreach($schedules as $schedule)
                 @php
                     $statusVal = is_object($schedule->status) ? $schedule->status->value : $schedule->status;
                     $statusLabels  = ['pending' => 'معلق', 'near_due' => 'قرب الاستحقاق', 'due' => 'مستحق', 'partial' => 'جزئي', 'paid' => 'مدفوع', 'overdue' => 'متأخر', 'cancelled' => 'ملغي'];
                     $statusClasses = ['pending' => 'bg-slate-100 text-slate-600', 'near_due' => 'bg-amber-50 text-amber-700', 'due' => 'bg-sky-50 text-sky-700', 'partial' => 'bg-purple-50 text-purple-700', 'paid' => 'bg-emerald-50 text-emerald-700', 'overdue' => 'bg-rose-50 text-rose-700', 'cancelled' => 'bg-slate-100 text-slate-400'];
                     $canPay = !in_array($statusVal, ['paid', 'cancelled']) && $schedule->remaining_amount > 0;
+                    $methodLabels = ['bank_transfer' => 'تحويل بنكي', 'cash' => 'نقداً', 'cheque' => 'شيك', 'other' => 'أخرى'];
                 @endphp
                     <tr class="hover:bg-slate-50 transition {{ $statusVal === 'overdue' ? 'bg-rose-50/30' : '' }}">
                         <td class="px-5 py-4 text-slate-500">{{ $schedule->installment_no }}</td>
@@ -81,19 +82,29 @@
                             </span>
                         </td>
                         <td class="px-5 py-4 text-left">
-                            @if($canPay)
-                                <button wire:click="openPaymentModal({{ $schedule->id }})" class="erp-btn-primary text-xs">
-                                    تسجيل دفعة
-                                </button>
-                            @endif
+                            <div class="flex items-center gap-2 justify-end">
+                                @if($canPay)
+                                    <button wire:click="openPaymentModal({{ $schedule->id }})" class="erp-btn-primary text-xs">
+                                        تسجيل دفعة
+                                    </button>
+                                @endif
+                                @if($schedule->payments->isNotEmpty())
+                                    <button @click="openSchedule = openSchedule === {{ $schedule->id }} ? null : {{ $schedule->id }}"
+                                        class="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 transition">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform duration-200"
+                                            :class="openSchedule === {{ $schedule->id }} ? 'rotate-180' : ''"
+                                            fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </button>
+                                @endif
+                            </div>
                         </td>
                     </tr>
                     @if($schedule->payments->isNotEmpty())
-                    @php
-                        $methodLabels = ['bank_transfer' => 'تحويل بنكي', 'cash' => 'نقداً', 'cheque' => 'شيك', 'other' => 'أخرى'];
-                    @endphp
                     @foreach($schedule->payments as $payment)
-                    <tr class="bg-emerald-50/40 text-xs border-t border-emerald-100">
+                    <tr x-show="openSchedule === {{ $schedule->id }}" x-cloak
+                        class="bg-emerald-50/40 text-xs border-t border-emerald-100">
                         <td class="px-5 py-2 text-slate-400">└</td>
                         <td class="px-5 py-2 text-slate-500">{{ $payment->payment_date?->format('Y/m/d') }}</td>
                         <td class="px-5 py-2 font-semibold text-emerald-700">{{ number_format($payment->amount, 0) }} ر.س</td>

@@ -27,6 +27,13 @@ class Login extends Component
             return;
         }
 
+        // منع المستخدمين المعطّلين من الدخول
+        if (! Auth::user()->isActive()) {
+            Auth::logout();
+            $this->addError('email', 'حسابك معطّل، تواصل مع مسؤول النظام');
+            return;
+        }
+
         session()->regenerate();
 
         // تسجيل وقت آخر دخول

@@ -93,14 +93,26 @@
                             </span>
                         </td>
                         <td class="px-5 py-3.5 text-left">
-                            @can('payments.create')
-                            @if($canPay)
-                                <button wire:click="openPaymentModal({{ $schedule->id }})"
-                                    class="erp-btn-primary erp-btn-sm">
-                                    تسجيل دفعة
+                            <div class="flex items-center gap-2 justify-end">
+                                <button wire:click="openNoteModal({{ $schedule->id }})"
+                                    title="{{ $schedule->notes ? 'توجد ملاحظة' : 'إضافة ملاحظة' }}"
+                                    @class(['relative rounded-xl px-3 py-1.5 text-xs font-semibold transition',
+                                        'bg-amber-100 text-amber-800 hover:bg-amber-200' => $schedule->notes,
+                                        'bg-slate-100 text-slate-500 hover:bg-slate-200' => !$schedule->notes])>
+                                    📝
+                                    @if($schedule->notes)
+                                        <span class="absolute -top-1 -left-1 h-2 w-2 rounded-full bg-amber-500"></span>
+                                    @endif
                                 </button>
-                            @endif
-                            @endcan
+                                @can('payments.create')
+                                @if($canPay)
+                                    <button wire:click="openPaymentModal({{ $schedule->id }})"
+                                        class="erp-btn-primary erp-btn-sm">
+                                        تسجيل دفعة
+                                    </button>
+                                @endif
+                                @endcan
+                            </div>
                         </td>
                     </tr>
                 @empty
@@ -177,6 +189,30 @@
                 <button wire:click="registerPayment" wire:loading.attr="disabled" class="erp-btn-primary">
                     <span wire:loading.remove wire:target="registerPayment">تسجيل الدفعة</span>
                     <span wire:loading wire:target="registerPayment">جارٍ الحفظ...</span>
+                </button>
+            </div>
+        </div>
+    </div>
+    @endif
+
+    {{-- modal ملاحظات الدفعة --}}
+    @if($showNoteModal)
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"
+         wire:click.self="$set('showNoteModal', false)">
+        <div class="w-full max-w-md rounded-3xl bg-white shadow-2xl">
+            <div class="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+                <h3 class="font-bold text-slate-900">📝 ملاحظات الدفعة</h3>
+                <button wire:click="$set('showNoteModal', false)" class="text-slate-400 hover:text-slate-600">✕</button>
+            </div>
+            <div class="px-6 py-5">
+                <textarea wire:model="noteText" rows="5"
+                    class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
+                    placeholder="اكتب ملاحظاتك هنا... (متابعة المالك، تواصل، وعود دفع، إلخ)"></textarea>
+            </div>
+            <div class="flex justify-end gap-3 border-t border-slate-100 px-6 py-4">
+                <button wire:click="$set('showNoteModal', false)" class="erp-btn-soft">إلغاء</button>
+                <button wire:click="saveNote" class="rounded-2xl bg-amber-500 px-5 py-2.5 text-sm font-bold text-white hover:bg-amber-600">
+                    حفظ الملاحظة
                 </button>
             </div>
         </div>

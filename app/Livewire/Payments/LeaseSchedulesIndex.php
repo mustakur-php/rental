@@ -23,6 +23,11 @@ class LeaseSchedulesIndex extends Component
     public bool $showPaymentModal = false;
     public ?int  $payingScheduleId = null;
 
+    // ملاحظات الدفعة
+    public bool   $showNoteModal  = false;
+    public ?int   $noteScheduleId = null;
+    public string $noteText       = '';
+
     public array $paymentForm = [
         'amount'           => '',
         'payment_method'   => 'bank_transfer',
@@ -105,6 +110,23 @@ class LeaseSchedulesIndex extends Component
 
         $this->showPaymentModal = false;
         $this->dispatch('notify', message: 'تم تسجيل الدفعة بنجاح');
+    }
+
+    public function openNoteModal(int $scheduleId): void
+    {
+        $schedule = PropertyLeaseSchedule::findOrFail($scheduleId);
+        $this->noteScheduleId = $schedule->id;
+        $this->noteText       = $schedule->notes ?? '';
+        $this->showNoteModal  = true;
+    }
+
+    public function saveNote(): void
+    {
+        PropertyLeaseSchedule::findOrFail($this->noteScheduleId)
+            ->update(['notes' => trim($this->noteText) ?: null]);
+
+        $this->showNoteModal = false;
+        $this->dispatch('notify', message: 'تم حفظ الملاحظة');
     }
 
     public function render()

@@ -25,6 +25,7 @@ class PaymentSchedule extends Model
         'grace_period_days',
         'paid_at',
         'status',
+        'notes',
     ];
 
     protected $casts = [

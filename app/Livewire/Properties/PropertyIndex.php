@@ -23,6 +23,7 @@ class PropertyIndex extends Component
     public bool $showCreateModal = false;
     public bool $showEditModal   = false;
     public ?int  $editingPropertyId = null;
+    public ?PropertyLease $editingLease = null;
 
     // تصاعد إيجار العقار (مستأجر)
     public bool  $has_lease_escalation = false;
@@ -56,6 +57,7 @@ class PropertyIndex extends Component
         'lease_end_date'         => '',
         'lease_annual_rent'      => '',   // الإيجار السنوي — الإجمالي يُحسب تلقائياً
         'lease_payment_cycle'    => 'monthly',
+        'lease_vat_rate'         => 0,
     ];
 
     public function mount(): void
@@ -95,11 +97,13 @@ class PropertyIndex extends Component
             'lease_end_date'         => now()->addYear()->toDateString(),
             'lease_annual_rent'      => '',
             'lease_payment_cycle'    => 'monthly',
+            'lease_vat_rate'         => 0,
         ]);
         $this->has_lease_escalation   = false;
         $this->lease_periods          = [['duration_months' => 12, 'increase_pct' => 0, 'annual_amount' => 0]];
         $this->lease_schedule_mode    = 'auto';
         $this->lease_manual_schedules = [['due_date' => '', 'amount' => '']];
+        $this->editingLease           = null;
         $this->showCreateModal = true;
     }
 
@@ -114,7 +118,7 @@ class PropertyIndex extends Component
                 }
             }
             $manualTotal   = array_sum(array_column($this->lease_manual_schedules, 'amount'));
-            $contractTotal = $this->calcLeaseTotalAmount();
+            $contractTotal = $this->calcLeaseTotalWithVat();
             if (abs((float)$manualTotal - $contractTotal) > 0.02) {
                 throw \Illuminate\Validation\ValidationException::withMessages([
                     'lease_manual_schedules' => 'مجموع الأقساط (' . number_format($manualTotal, 2) . ') لا يساوي إجمالي العقد (' . number_format($contractTotal, 2) . ' ر.س)',
@@ -186,7 +190,9 @@ class PropertyIndex extends Component
             'lease_end_date'         => $lease?->end_date?->format('Y-m-d') ?? now()->addYear()->toDateString(),
             'lease_annual_rent'      => $this->backCalculateAnnualRent($lease),
             'lease_payment_cycle'    => $lease?->payment_cycle ?? 'monthly',
+            'lease_vat_rate'         => $lease?->vat_rate ?? 0,
         ];
+        $this->editingLease = $lease;
         // تحميل وضع الجدول
         $this->lease_schedule_mode    = 'auto';
         $this->lease_manual_schedules = [['due_date' => '', 'amount' => '']];
@@ -234,6 +240,10 @@ class PropertyIndex extends Component
 
             $existing = $property->activeLease;
             if ($existing) {
+                $totalAmount  = $this->calcLeaseTotalAmount();
+                $vatRate      = (float) ($this->form['lease_vat_rate'] ?? 0);
+                $vatAmount    = round($totalAmount * $vatRate / 100, 2);
+                $totalWithVat = round($totalAmount + $vatAmount, 2);
                 $existing->update([
                     'owner_name'            => $this->form['owner_name'],
                     'owner_mobile'          => $this->form['owner_mobile'],
@@ -241,9 +251,13 @@ class PropertyIndex extends Component
                     'lease_contract_number' => $this->form['lease_contract_number'],
                     'start_date'            => $this->form['lease_start_date'],
                     'end_date'              => $this->form['lease_end_date'],
-                    'total_amount'          => $this->calcLeaseTotalAmount(),
+                    'total_amount'          => $totalAmount,
+                    'vat_rate'              => $vatRate,
+                    'vat_amount'            => $vatAmount,
+                    'total_with_vat'        => $totalWithVat,
                     'payment_cycle'         => $this->form['lease_payment_cycle'],
                 ]);
+                $this->editingLease = $existing->fresh();
 
                 if ($this->has_lease_escalation) {
                     $this->savePropertyLeasePeriods($existing);
@@ -378,6 +392,9 @@ class PropertyIndex extends Component
 
         $cycle        = $this->form['lease_payment_cycle'];
         $totalAmount  = $this->calcLeaseTotalAmount();
+        $vatRate      = (float) ($this->form['lease_vat_rate'] ?? 0);
+        $vatAmount    = round($totalAmount * $vatRate / 100, 2);
+        $totalWithVat = round($totalAmount + $vatAmount, 2);
         $installments = $this->calcLeaseInstallmentsCount();
 
         $lease = PropertyLease::create([
@@ -389,10 +406,14 @@ class PropertyIndex extends Component
             'start_date'            => $this->form['lease_start_date'],
             'end_date'              => $this->form['lease_end_date'],
             'total_amount'          => $totalAmount,
+            'vat_rate'              => $vatRate,
+            'vat_amount'            => $vatAmount,
+            'total_with_vat'        => $totalWithVat,
             'payment_cycle'         => $cycle,
             'installments_count'    => $installments,
             'status'                => 'active',
         ]);
+        $this->editingLease = $lease;
 
         if ($this->has_lease_escalation) {
             $this->savePropertyLeasePeriods($lease);
@@ -542,6 +563,7 @@ class PropertyIndex extends Component
             'form.lease_end_date'        => [$isLeased ? 'required' : 'nullable', 'date', 'after:form.lease_start_date'],
             'form.lease_annual_rent'     => [$isLeased ? 'required' : 'nullable', 'numeric', 'min:1'],
             'form.lease_payment_cycle'   => ['required', 'string'],
+            'form.lease_vat_rate'        => ['nullable', 'numeric', 'min:0', 'max:100'],
         ];
     }
 
@@ -601,6 +623,17 @@ class PropertyIndex extends Component
         return round($total / $count, 2);
     }
 
+    private function calcLeaseVatAmount(): float
+    {
+        $vatRate = (float) ($this->form['lease_vat_rate'] ?? 0);
+        return round($this->calcLeaseTotalAmount() * $vatRate / 100, 2);
+    }
+
+    private function calcLeaseTotalWithVat(): float
+    {
+        return round($this->calcLeaseTotalAmount() + $this->calcLeaseVatAmount(), 2);
+    }
+
     // إعادة حساب الإيجار السنوي من إجمالي مخزون (عند التعديل)
     protected function backCalculateAnnualRent(?PropertyLease $lease): float
     {
@@ -641,15 +674,17 @@ class PropertyIndex extends Component
 
         $companies = Company::notArchived()->active()->orderBy('name')->get(['id', 'name', 'code']);
 
-        $leaseDurationMonths          = $this->calcLeaseDurationMonths();
-        $computedLeaseTotalAmount     = $this->calcLeaseTotalAmount();
+        $leaseDurationMonths            = $this->calcLeaseDurationMonths();
+        $computedLeaseTotalAmount       = $this->calcLeaseTotalAmount();
+        $computedLeaseVatAmount         = $this->calcLeaseVatAmount();
+        $computedLeaseTotalWithVat      = $this->calcLeaseTotalWithVat();
         $leaseInstallmentsPreviewCount  = $this->calcLeaseInstallmentsCount();
         $leaseInstallmentsPreviewAmount = $this->calcLeaseInstallmentAmount();
 
         return view('livewire.properties.property-index',
             compact('properties', 'companies', 'leaseDurationMonths',
-                    'computedLeaseTotalAmount', 'leaseInstallmentsPreviewCount',
-                    'leaseInstallmentsPreviewAmount'))
+                    'computedLeaseTotalAmount', 'computedLeaseVatAmount', 'computedLeaseTotalWithVat',
+                    'leaseInstallmentsPreviewCount', 'leaseInstallmentsPreviewAmount'))
             ->layout('layouts.app', ['title' => 'العقارات']);
     }
 }

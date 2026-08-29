@@ -317,6 +317,15 @@
                                     placeholder="0.00">
                                 @error('form.lease_annual_rent') <p class="mt-1 text-xs text-rose-600">{{ $message }}</p> @enderror
                             </div>
+
+                            <div>
+                                <label class="text-sm font-bold text-slate-700">نسبة الضريبة (%) — اتركها صفر إن لم تنطبق</label>
+                                <input type="number" step="0.01" min="0" max="100" wire:model.live="form.lease_vat_rate"
+                                    class="mt-2 w-full rounded-2xl border-slate-200 bg-white px-4 py-3 text-sm {{ $errors->has('form.lease_vat_rate') ? 'border-rose-300 bg-rose-50' : '' }}"
+                                    placeholder="0">
+                                @error('form.lease_vat_rate') <p class="mt-1 text-xs text-rose-600">{{ $message }}</p> @enderror
+                            </div>
+
                             @if($lease_schedule_mode === 'auto')
                             <div>
                                 <label class="text-sm font-bold text-slate-700">دورة الدفع للمالك</label>
@@ -331,13 +340,13 @@
                             @endif
 
                             {{-- الجدول اليدوي --}}
-                            @if($lease_schedule_mode === 'manual' && $computedLeaseTotalAmount > 0)
+                            @if($lease_schedule_mode === 'manual' && $computedLeaseTotalWithVat > 0)
                             <div class="md:col-span-2 space-y-3">
                                 <div class="flex items-center justify-between">
                                     <h4 class="text-sm font-bold text-slate-700">جدول الأقساط اليدوي</h4>
-                                    @php $lmTotal = collect($lease_manual_schedules)->sum(fn($r) => (float)($r['amount'] ?? 0)); $lRemaining = round($computedLeaseTotalAmount - $lmTotal, 2); @endphp
+                                    @php $lmTotal = collect($lease_manual_schedules)->sum(fn($r) => (float)($r['amount'] ?? 0)); $lRemaining = round($computedLeaseTotalWithVat - $lmTotal, 2); @endphp
                                     <span @class(['text-xs font-bold', 'text-emerald-600' => abs($lRemaining) <= 0.02, 'text-rose-600' => abs($lRemaining) > 0.02])>
-                                        {{ number_format($lmTotal, 2) }} / {{ number_format($computedLeaseTotalAmount, 2) }} ر.س
+                                        {{ number_format($lmTotal, 2) }} / {{ number_format($computedLeaseTotalWithVat, 2) }} ر.س
                                         @if(abs($lRemaining) > 0.02)
                                             ({{ $lRemaining > 0 ? 'متبقي' : 'زائد' }}: {{ number_format(abs($lRemaining), 2) }})
                                         @else ✓ @endif
@@ -501,15 +510,23 @@
                                         @endif
                                     </span>
 
-                                    <span class="text-slate-500 font-bold">إجمالي قيمة العقد</span>
-                                    <span class="font-black text-emerald-700 text-left">{{ number_format($computedLeaseTotalAmount, 0) }} ر.س</span>
+                                    <span class="text-slate-500">إجمالي الإيجار (قبل الضريبة)</span>
+                                    <span class="font-semibold text-left">{{ number_format($computedLeaseTotalAmount, 2) }} ر.س</span>
+
+                                    @if($computedLeaseVatAmount > 0)
+                                    <span class="text-slate-500">الضريبة ({{ $form['lease_vat_rate'] }}%)</span>
+                                    <span class="font-semibold text-amber-700 text-left">+ {{ number_format($computedLeaseVatAmount, 2) }} ر.س</span>
+                                    @endif
+
+                                    <span class="text-slate-500 font-bold border-t border-emerald-200 pt-1">إجمالي العقد شامل الضريبة</span>
+                                    <span class="font-black text-emerald-700 text-left border-t border-emerald-200 pt-1">{{ number_format($computedLeaseTotalWithVat, 2) }} ر.س</span>
                                 </div>
-                                @if($leaseInstallmentsPreviewCount > 0)
+                                @if($lease_schedule_mode === 'auto' && $leaseInstallmentsPreviewCount > 0)
                                 <div class="mt-2 pt-2 border-t border-emerald-200 grid grid-cols-2 gap-x-4 text-slate-600 text-xs">
                                     <span>عدد الأقساط</span>
                                     <span class="font-black text-slate-800 text-left">{{ $leaseInstallmentsPreviewCount }} قسط</span>
                                     <span>قيمة كل قسط</span>
-                                    <span class="font-black text-slate-800 text-left">{{ number_format($leaseInstallmentsPreviewAmount, 0) }} ر.س</span>
+                                    <span class="font-black text-slate-800 text-left">{{ number_format($leaseInstallmentsPreviewAmount, 2) }} ر.س</span>
                                 </div>
                                 @endif
                             </div>
@@ -531,6 +548,13 @@
                     </div>
                 @endif
             </div>
+
+            {{-- مرفقات العقد — تظهر فقط عند تعديل عقار مستأجر موجود --}}
+            @if($showEditModal && $editingLease)
+            <div class="border-t border-slate-100 px-6 py-4">
+                <livewire:attachment-manager :attachable="$editingLease" :key="'lease-'.$editingLease->id" />
+            </div>
+            @endif
 
             <div class="flex justify-end gap-3 border-t border-slate-100 px-6 py-4">
                 <button wire:click="$set('{{ $showCreateModal ? 'showCreateModal' : 'showEditModal' }}', false)" class="erp-btn-soft">إلغاء</button>

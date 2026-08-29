@@ -14,7 +14,8 @@ class ContractData
         public float $vatRate = 15,
         public ?string $notes = null,
         public float $depositAmount = 0,
-        public array $periods = [],  // [{duration_months, annual_amount, increase_percentage}]
+        public array $periods = [],           // [{duration_months, annual_amount, increase_percentage}]
+        public array $manualSchedules = [],   // [{due_date, amount}] — المبلغ شامل الضريبة
     ) {
     }
 }

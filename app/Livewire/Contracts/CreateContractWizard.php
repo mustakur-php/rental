@@ -42,6 +42,12 @@ class CreateContractWizard extends Component
         ['duration_months' => 12, 'increase_pct' => 0],
     ];
 
+    // جدول يدوي
+    public string $schedule_mode     = 'auto'; // auto | manual
+    public array  $manual_schedules  = [
+        ['due_date' => '', 'amount' => ''],
+    ];
+
     public function mount(): void
     {
         $unitId = request()->integer('unit_id');
@@ -98,6 +104,41 @@ class CreateContractWizard extends Component
     {
         $this->unit_id = $id;
         $this->resetValidation('unit_id');
+    }
+
+    // ─── الجدول اليدوي ───────────────────────────────
+    public function setScheduleMode(string $mode): void
+    {
+        $this->schedule_mode = $mode;
+        if ($mode === 'manual') {
+            $this->has_escalation = false;
+            // ابدأ بصف واحد فارغ
+            $this->manual_schedules = [['due_date' => $this->start_date ?? '', 'amount' => '']];
+        }
+        $this->resetValidation(['manual_schedules', 'periods']);
+    }
+
+    public function addManualSchedule(): void
+    {
+        $this->manual_schedules[] = ['due_date' => '', 'amount' => ''];
+    }
+
+    public function removeManualSchedule(int $index): void
+    {
+        if (count($this->manual_schedules) <= 1) return;
+        array_splice($this->manual_schedules, $index, 1);
+        $this->manual_schedules = array_values($this->manual_schedules);
+    }
+
+    public function calcManualTotal(): float
+    {
+        return round(array_sum(array_column($this->manual_schedules, 'amount')), 2);
+    }
+
+    public function calcContractTotalWithVat(): float
+    {
+        $total = $this->calcTotalAmount();
+        return round($total * (1 + (float) $this->vat_rate / 100), 2);
     }
 
     // ─── تصاعد الإيجار — إدارة الفترات ──────────────
@@ -185,9 +226,29 @@ class CreateContractWizard extends Component
             $contractMonths = $this->calcDurationMonths();
             $periodsMonths  = array_sum(array_column($this->periods, 'duration_months'));
             if ($periodsMonths !== $contractMonths) {
-                $this->addError('periods', "مجموع مدد الفترات ({$periodsMonths} شهر) يجب أن يساوي مدة العقد ({$contractMonths} شهر)");
                 throw \Illuminate\Validation\ValidationException::withMessages([
                     'periods' => "مجموع مدد الفترات ({$periodsMonths} شهر) يجب أن يساوي مدة العقد ({$contractMonths} شهر)",
+                ]);
+            }
+        }
+
+        if ($this->schedule_mode === 'manual') {
+            $this->validate([
+                'manual_schedules'             => ['required', 'array', 'min:1'],
+                'manual_schedules.*.due_date'  => ['required', 'date'],
+                'manual_schedules.*.amount'    => ['required', 'numeric', 'min:0.01'],
+            ], [
+                'manual_schedules.*.due_date.required' => 'تاريخ الاستحقاق إلزامي',
+                'manual_schedules.*.due_date.date'     => 'تاريخ غير صحيح',
+                'manual_schedules.*.amount.required'   => 'المبلغ إلزامي',
+                'manual_schedules.*.amount.min'        => 'المبلغ يجب أن يكون أكبر من صفر',
+            ]);
+
+            $manualTotal    = $this->calcManualTotal();
+            $contractTotal  = $this->calcContractTotalWithVat();
+            if (abs($manualTotal - $contractTotal) > 0.02) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'manual_schedules' => 'مجموع الأقساط (' . number_format($manualTotal, 2) . ') لا يساوي إجمالي العقد شامل الضريبة (' . number_format($contractTotal, 2) . ' ر.س)',
                 ]);
             }
         }
@@ -224,16 +285,27 @@ class CreateContractWizard extends Component
             }
         }
 
+        $manualSchedulesForAction = [];
+        if ($this->schedule_mode === 'manual') {
+            foreach ($this->manual_schedules as $row) {
+                $manualSchedulesForAction[] = [
+                    'due_date' => $row['due_date'],
+                    'amount'   => (float) $row['amount'],
+                ];
+            }
+        }
+
         $data = new ContractData(
-            tenantId:     $this->tenant_id,
-            unitId:       $this->unit_id,
-            startDate:    $this->start_date,
-            endDate:      $this->end_date,
-            billingCycle: $this->billing_cycle,
-            totalAmount:  $this->calcTotalAmount(),
-            vatRate:      $this->vat_rate,
-            notes:        $this->notes,
-            periods:      $periodsForAction,
+            tenantId:        $this->tenant_id,
+            unitId:          $this->unit_id,
+            startDate:       $this->start_date,
+            endDate:         $this->end_date,
+            billingCycle:    $this->billing_cycle,
+            totalAmount:     $this->calcTotalAmount(),
+            vatRate:         $this->vat_rate,
+            notes:           $this->notes,
+            periods:         $periodsForAction,
+            manualSchedules: $manualSchedulesForAction,
         );
 
         $contract = $action->execute($data);

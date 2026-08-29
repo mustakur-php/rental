@@ -293,6 +293,23 @@
                                 <input type="date" wire:model.live="form.lease_end_date" class="mt-2 w-full rounded-2xl border-slate-200 bg-white px-4 py-3 text-sm">
                                 @error('form.lease_end_date') <p class="mt-1 text-xs text-rose-600">{{ $message }}</p> @enderror
                             </div>
+                            {{-- وضع الجدول --}}
+                            <div class="md:col-span-2">
+                                <label class="text-sm font-bold text-slate-700 mb-2 block">طريقة توليد الأقساط</label>
+                                <div class="flex gap-3">
+                                    <button type="button" wire:click="setLeaseScheduleMode('auto')"
+                                        @class(['flex-1 rounded-2xl border-2 px-4 py-3 text-sm font-bold transition text-right', 'border-slate-900 bg-slate-50 text-slate-900' => $lease_schedule_mode === 'auto', 'border-slate-200 text-slate-500 hover:border-slate-300' => $lease_schedule_mode !== 'auto'])>
+                                        <div>🧮 تلقائي</div>
+                                        <div class="text-xs font-normal mt-0.5 opacity-70">يُحسب من الإيجار ودورة الدفع</div>
+                                    </button>
+                                    <button type="button" wire:click="setLeaseScheduleMode('manual')"
+                                        @class(['flex-1 rounded-2xl border-2 px-4 py-3 text-sm font-bold transition text-right', 'border-blue-600 bg-blue-50 text-blue-800' => $lease_schedule_mode === 'manual', 'border-slate-200 text-slate-500 hover:border-slate-300' => $lease_schedule_mode !== 'manual'])>
+                                        <div>📋 يدوي</div>
+                                        <div class="text-xs font-normal mt-0.5 opacity-70">تحديد كل قسط بتاريخه ومبلغه</div>
+                                    </button>
+                                </div>
+                            </div>
+
                             <div>
                                 <label class="text-sm font-bold text-slate-700">الإيجار السنوي (ر.س) *</label>
                                 <input type="number" step="0.01" wire:model.live="form.lease_annual_rent"
@@ -300,6 +317,7 @@
                                     placeholder="0.00">
                                 @error('form.lease_annual_rent') <p class="mt-1 text-xs text-rose-600">{{ $message }}</p> @enderror
                             </div>
+                            @if($lease_schedule_mode === 'auto')
                             <div>
                                 <label class="text-sm font-bold text-slate-700">دورة الدفع للمالك</label>
                                 <select wire:model.live="form.lease_payment_cycle" class="mt-2 w-full rounded-2xl border-slate-200 bg-white px-4 py-3 text-sm">
@@ -310,8 +328,71 @@
                                     <option value="annually">سنوي</option>
                                 </select>
                             </div>
+                            @endif
+
+                            {{-- الجدول اليدوي --}}
+                            @if($lease_schedule_mode === 'manual' && $computedLeaseTotalAmount > 0)
+                            <div class="md:col-span-2 space-y-3">
+                                <div class="flex items-center justify-between">
+                                    <h4 class="text-sm font-bold text-slate-700">جدول الأقساط اليدوي</h4>
+                                    @php $lmTotal = collect($lease_manual_schedules)->sum(fn($r) => (float)($r['amount'] ?? 0)); $lRemaining = round($computedLeaseTotalAmount - $lmTotal, 2); @endphp
+                                    <span @class(['text-xs font-bold', 'text-emerald-600' => abs($lRemaining) <= 0.02, 'text-rose-600' => abs($lRemaining) > 0.02])>
+                                        {{ number_format($lmTotal, 2) }} / {{ number_format($computedLeaseTotalAmount, 2) }} ر.س
+                                        @if(abs($lRemaining) > 0.02)
+                                            ({{ $lRemaining > 0 ? 'متبقي' : 'زائد' }}: {{ number_format(abs($lRemaining), 2) }})
+                                        @else ✓ @endif
+                                    </span>
+                                </div>
+                                <div class="overflow-x-auto rounded-2xl border border-blue-200">
+                                    <table class="w-full text-sm">
+                                        <thead>
+                                            <tr class="bg-blue-50 text-blue-700 text-right">
+                                                <th class="px-4 py-3 font-bold">#</th>
+                                                <th class="px-4 py-3 font-bold">تاريخ الاستحقاق</th>
+                                                <th class="px-4 py-3 font-bold">المبلغ (ر.س)</th>
+                                                <th class="px-4 py-3"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-slate-100">
+                                            @foreach($lease_manual_schedules as $i => $row)
+                                            <tr wire:key="lms-{{ $i }}">
+                                                <td class="px-4 py-3 font-bold text-slate-400">{{ $i + 1 }}</td>
+                                                <td class="px-4 py-3">
+                                                    <input type="date" wire:model.live="lease_manual_schedules.{{ $i }}.due_date"
+                                                        class="rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
+                                                </td>
+                                                <td class="px-4 py-3">
+                                                    <input type="number" step="0.01" min="0.01"
+                                                        wire:model.live="lease_manual_schedules.{{ $i }}.amount"
+                                                        placeholder="0.00"
+                                                        class="w-36 rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
+                                                </td>
+                                                <td class="px-4 py-3">
+                                                    @if(count($lease_manual_schedules) > 1)
+                                                    <button type="button" wire:click="removeLeaseManualSchedule({{ $i }})"
+                                                        class="rounded-full p-1 text-rose-400 hover:bg-rose-50 hover:text-rose-600 transition">
+                                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                                                    </button>
+                                                    @endif
+                                                </td>
+                                            </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <button type="button" wire:click="addLeaseManualSchedule"
+                                    class="flex items-center gap-2 rounded-2xl border border-dashed border-blue-300 bg-blue-50 px-5 py-3 text-sm font-bold text-blue-700 hover:bg-blue-100 transition w-full justify-center">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                                    إضافة قسط
+                                </button>
+                                @error('lease_manual_schedules')
+                                    <p class="text-xs font-bold text-rose-600">{{ $message }}</p>
+                                @enderror
+                            </div>
+                            @endif
 
                             {{-- تصاعد الإيجار --}}
+                            @if($lease_schedule_mode === 'auto')
                             <div class="md:col-span-2">
                                 <div class="flex items-center justify-between rounded-2xl border border-purple-200 bg-white px-5 py-4">
                                     <div>
@@ -400,6 +481,7 @@
                                 @enderror
                             </div>
                             @endif
+                            @endif {{-- نهاية @if($lease_schedule_mode === 'auto') --}}
 
                             {{-- ملخص الحساب التلقائي --}}
                             @if($computedLeaseTotalAmount > 0)

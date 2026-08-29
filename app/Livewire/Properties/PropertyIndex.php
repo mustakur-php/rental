@@ -30,6 +30,12 @@ class PropertyIndex extends Component
         ['duration_months' => 12, 'increase_pct' => 0, 'annual_amount' => 0],
     ];
 
+    // جدول يدوي لعقود الملاك
+    public string $lease_schedule_mode    = 'auto'; // auto | manual
+    public array  $lease_manual_schedules = [
+        ['due_date' => '', 'amount' => ''],
+    ];
+
     public array $form = [
         'company_id'     => null,
         'code'           => '',
@@ -90,13 +96,33 @@ class PropertyIndex extends Component
             'lease_annual_rent'      => '',
             'lease_payment_cycle'    => 'monthly',
         ]);
-        $this->has_lease_escalation = false;
-        $this->lease_periods        = [['duration_months' => 12, 'increase_pct' => 0, 'annual_amount' => 0]];
+        $this->has_lease_escalation   = false;
+        $this->lease_periods          = [['duration_months' => 12, 'increase_pct' => 0, 'annual_amount' => 0]];
+        $this->lease_schedule_mode    = 'auto';
+        $this->lease_manual_schedules = [['due_date' => '', 'amount' => '']];
         $this->showCreateModal = true;
     }
 
     private function validateLeaseEscalationPeriods(): void
     {
+        if ($this->lease_schedule_mode === 'manual') {
+            foreach ($this->lease_manual_schedules as $i => $row) {
+                if (empty($row['due_date']) || empty($row['amount']) || (float)$row['amount'] <= 0) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'lease_manual_schedules' => 'يرجى تعبئة تاريخ ومبلغ لكل قسط',
+                    ]);
+                }
+            }
+            $manualTotal   = array_sum(array_column($this->lease_manual_schedules, 'amount'));
+            $contractTotal = $this->calcLeaseTotalAmount();
+            if (abs((float)$manualTotal - $contractTotal) > 0.02) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'lease_manual_schedules' => 'مجموع الأقساط (' . number_format($manualTotal, 2) . ') لا يساوي إجمالي العقد (' . number_format($contractTotal, 2) . ' ر.س)',
+                ]);
+            }
+            return;
+        }
+
         if (! $this->has_lease_escalation) return;
         $leaseMonths   = $this->calcLeaseDurationMonths();
         $periodsMonths = array_sum(array_column($this->lease_periods, 'duration_months'));
@@ -161,6 +187,10 @@ class PropertyIndex extends Component
             'lease_annual_rent'      => $this->backCalculateAnnualRent($lease),
             'lease_payment_cycle'    => $lease?->payment_cycle ?? 'monthly',
         ];
+        // تحميل وضع الجدول
+        $this->lease_schedule_mode    = 'auto';
+        $this->lease_manual_schedules = [['due_date' => '', 'amount' => '']];
+
         // تحميل فترات التصاعد إن وجدت
         if ($lease && $lease->periods()->exists()) {
             $this->has_lease_escalation = true;
@@ -254,6 +284,29 @@ class PropertyIndex extends Component
         $this->dispatch('notify', message: 'تم نقل العقار ووحداته إلى الأرشيف');
     }
 
+    // ─── الجدول اليدوي (ملاك العقارات) ──────────────
+    public function setLeaseScheduleMode(string $mode): void
+    {
+        $this->lease_schedule_mode = $mode;
+        if ($mode === 'manual') {
+            $this->has_lease_escalation   = false;
+            $this->lease_manual_schedules = [['due_date' => $this->form['lease_start_date'] ?? '', 'amount' => '']];
+        }
+        $this->resetValidation(['lease_manual_schedules', 'lease_periods']);
+    }
+
+    public function addLeaseManualSchedule(): void
+    {
+        $this->lease_manual_schedules[] = ['due_date' => '', 'amount' => ''];
+    }
+
+    public function removeLeaseManualSchedule(int $index): void
+    {
+        if (count($this->lease_manual_schedules) <= 1) return;
+        array_splice($this->lease_manual_schedules, $index, 1);
+        $this->lease_manual_schedules = array_values($this->lease_manual_schedules);
+    }
+
     // ─── تصاعد إيجار العقار ──────────────────────────
     public function addLeasePeriod(): void
     {
@@ -345,6 +398,10 @@ class PropertyIndex extends Component
             $this->savePropertyLeasePeriods($lease);
         }
 
+        if ($this->lease_schedule_mode === 'manual') {
+            $lease->update(['installments_count' => count($this->lease_manual_schedules)]);
+        }
+
         $this->syncLeaseSchedules($lease);
     }
 
@@ -360,6 +417,22 @@ class PropertyIndex extends Component
 
         $lease->schedules()->delete();
         $monthStep = $this->leaseCycleMonths($lease->payment_cycle);
+
+        // جدول يدوي
+        if ($this->lease_schedule_mode === 'manual') {
+            foreach ($this->lease_manual_schedules as $i => $row) {
+                PropertyLeaseSchedule::create([
+                    'property_lease_id' => $lease->id,
+                    'installment_no'    => $i + 1,
+                    'due_date'          => $row['due_date'],
+                    'amount'            => round((float) $row['amount'], 2),
+                    'paid_amount'       => 0,
+                    'remaining_amount'  => round((float) $row['amount'], 2),
+                    'status'            => 'pending',
+                ]);
+            }
+            return;
+        }
 
         $periods = $lease->periods()->orderBy('period_no')->get();
 

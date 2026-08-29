@@ -185,6 +185,7 @@
                         @error('end_date') <p class="mt-1 text-xs font-bold text-rose-600">{{ $message }}</p> @enderror
                     </div>
 
+                    @if($schedule_mode === 'auto')
                     <div>
                         <label class="flex items-center gap-1 text-sm font-bold text-slate-700">
                             دورة الفوترة <span class="text-rose-500">*</span>
@@ -196,6 +197,24 @@
                             <option value="semi_annually">نصف سنوي</option>
                             <option value="annually">سنوي</option>
                         </select>
+                    </div>
+                    @endif
+
+                    {{-- وضع الجدول: تلقائي / يدوي --}}
+                    <div class="md:col-span-2">
+                        <label class="text-sm font-bold text-slate-700 mb-2 block">طريقة توليد الأقساط</label>
+                        <div class="flex gap-3">
+                            <button type="button" wire:click="setScheduleMode('auto')"
+                                @class(['flex-1 rounded-2xl border-2 px-4 py-3 text-sm font-bold transition text-right', 'border-slate-900 bg-slate-50 text-slate-900' => $schedule_mode === 'auto', 'border-slate-200 text-slate-500 hover:border-slate-300' => $schedule_mode !== 'auto'])>
+                                <div>🧮 تلقائي</div>
+                                <div class="text-xs font-normal mt-0.5 opacity-70">يُحسب من الإيجار ودورة الفوترة</div>
+                            </button>
+                            <button type="button" wire:click="setScheduleMode('manual')"
+                                @class(['flex-1 rounded-2xl border-2 px-4 py-3 text-sm font-bold transition text-right', 'border-blue-600 bg-blue-50 text-blue-800' => $schedule_mode === 'manual', 'border-slate-200 text-slate-500 hover:border-slate-300' => $schedule_mode !== 'manual'])>
+                                <div>📋 يدوي</div>
+                                <div class="text-xs font-normal mt-0.5 opacity-70">تحديد كل قسط بتاريخه ومبلغه</div>
+                            </button>
+                        </div>
                     </div>
 
                     <div>
@@ -213,7 +232,75 @@
                             class="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300">
                     </div>
 
+                    {{-- الجدول اليدوي --}}
+                    @if($schedule_mode === 'manual' && $calculatedTotalAmount > 0)
+                    <div class="md:col-span-2 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <h4 class="text-sm font-bold text-slate-700">جدول الأقساط اليدوي</h4>
+                            @php $manualTotal = collect($manual_schedules)->sum(fn($r) => (float)($r['amount'] ?? 0)); $contractTotalVat = round($calculatedTotalAmount * (1 + $vat_rate / 100), 2); $remaining = round($contractTotalVat - $manualTotal, 2); @endphp
+                            <span @class(['text-xs font-bold', 'text-emerald-600' => abs($remaining) <= 0.02, 'text-rose-600' => abs($remaining) > 0.02])>
+                                {{ number_format($manualTotal, 2) }} / {{ number_format($contractTotalVat, 2) }} ر.س
+                                @if(abs($remaining) > 0.02)
+                                    ({{ $remaining > 0 ? 'متبقي' : 'زائد' }}: {{ number_format(abs($remaining), 2) }})
+                                @else
+                                    ✓
+                                @endif
+                            </span>
+                        </div>
+                        <div class="overflow-x-auto rounded-2xl border border-blue-200">
+                            <table class="w-full text-sm">
+                                <thead>
+                                    <tr class="bg-blue-50 text-blue-700 text-right">
+                                        <th class="px-4 py-3 font-bold">#</th>
+                                        <th class="px-4 py-3 font-bold">تاريخ الاستحقاق</th>
+                                        <th class="px-4 py-3 font-bold">المبلغ (شامل الضريبة)</th>
+                                        <th class="px-4 py-3"></th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100">
+                                    @foreach($manual_schedules as $i => $row)
+                                    <tr wire:key="ms-{{ $i }}">
+                                        <td class="px-4 py-3 font-bold text-slate-400">{{ $i + 1 }}</td>
+                                        <td class="px-4 py-3">
+                                            <input type="date" wire:model.live="manual_schedules.{{ $i }}.due_date"
+                                                class="rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
+                                            @error("manual_schedules.{$i}.due_date") <p class="text-xs text-rose-600 mt-1">{{ $message }}</p> @enderror
+                                        </td>
+                                        <td class="px-4 py-3">
+                                            <input type="number" step="0.01" min="0.01" wire:model.live="manual_schedules.{{ $i }}.amount"
+                                                placeholder="0.00"
+                                                class="w-36 rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
+                                            @error("manual_schedules.{$i}.amount") <p class="text-xs text-rose-600 mt-1">{{ $message }}</p> @enderror
+                                        </td>
+                                        <td class="px-4 py-3">
+                                            @if(count($manual_schedules) > 1)
+                                            <button type="button" wire:click="removeManualSchedule({{ $i }})"
+                                                class="rounded-full p-1 text-rose-400 hover:bg-rose-50 hover:text-rose-600 transition">
+                                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                                            </button>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                        <button type="button" wire:click="addManualSchedule"
+                            class="flex items-center gap-2 rounded-2xl border border-dashed border-blue-300 bg-blue-50 px-5 py-3 text-sm font-bold text-blue-700 hover:bg-blue-100 transition w-full justify-center">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                            إضافة قسط
+                        </button>
+                        @error('manual_schedules')
+                            <p class="text-xs font-bold text-rose-600 flex items-center gap-1">
+                                <svg class="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+                                {{ $message }}
+                            </p>
+                        @enderror
+                    </div>
+                    @endif
+
                     {{-- تصاعد الإيجار --}}
+                    @if($schedule_mode === 'auto')
                     <div class="md:col-span-2">
                         <div class="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4">
                             <div>
@@ -304,6 +391,7 @@
                         @enderror
                     </div>
                     @endif
+                    @endif {{-- نهاية @if($schedule_mode === 'auto') --}}
 
                     {{-- ملخص الحساب التلقائي --}}
                     @if($calculatedTotalAmount > 0)

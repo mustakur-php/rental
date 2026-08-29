@@ -66,7 +66,9 @@ class CreateContractAction
                 'notes' => $data->notes,
             ]);
 
-            if (! empty($data->periods)) {
+            if (! empty($data->manualSchedules)) {
+                $this->createManualPaymentSchedules($contract, $data->manualSchedules);
+            } elseif (! empty($data->periods)) {
                 $this->saveContractPeriods($contract, $data->periods);
                 $this->createPaymentSchedulesFromPeriods($contract, $data->periods);
             } else {
@@ -125,6 +127,32 @@ class CreateContractAction
                 'status' => PaymentScheduleStatus::Pending->value,
             ]);
         }
+    }
+
+    private function createManualPaymentSchedules(Contract $contract, array $schedules): void
+    {
+        $vatRate = (float) $contract->vat_rate;
+
+        foreach ($schedules as $i => $row) {
+            $total      = round((float) $row['amount'], 2);
+            $base       = round($total / (1 + $vatRate / 100), 2);
+            $vat        = round($total - $base, 2);
+
+            PaymentSchedule::create([
+                'contract_id'      => $contract->id,
+                'installment_no'   => $i + 1,
+                'due_date'         => $row['due_date'],
+                'base_amount'      => $base,
+                'vat_amount'       => $vat,
+                'total_amount'     => $total,
+                'paid_amount'      => 0,
+                'remaining_amount' => $total,
+                'status'           => PaymentScheduleStatus::Pending->value,
+            ]);
+        }
+
+        // حدّث عدد الأقساط الفعلي في العقد
+        $contract->update(['installments_count' => count($schedules)]);
     }
 
     private function saveContractPeriods(Contract $contract, array $periods): void

@@ -198,7 +198,7 @@
         <div class="erp-card mt-4 overflow-hidden">
             <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
                 <h3 class="font-bold text-slate-800">
-                    ⚠ تفصيل المتأخرات
+                    👤 دفعات المستأجرين المتأخرة
                     <span class="mr-2 rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-bold text-rose-700">
                         {{ count($arrearsOverdue) }} دفعة
                     </span>
@@ -272,6 +272,87 @@
                             <td class="px-5 py-3 text-slate-800">{{ number_format(array_sum(array_column($arrearsOverdue, 'total_amount')), 2) }}</td>
                             <td class="px-5 py-3 text-emerald-700">{{ number_format(array_sum(array_column($arrearsOverdue, 'paid')), 2) }}</td>
                             <td class="px-5 py-3 text-rose-700">{{ number_format(array_sum(array_column($arrearsOverdue, 'remaining')), 2) }}</td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            @endif
+        </div>
+
+        {{-- جدول تفصيلي — دفعات الملاك المتأخرة --}}
+        <div class="erp-card mt-4 overflow-hidden">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+                <h3 class="font-bold text-slate-800">
+                    🏢 دفعات الملاك المتأخرة
+                    <span class="mr-2 rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-bold text-orange-700">
+                        {{ count($arrearsOwnerOverdue) }} دفعة
+                    </span>
+                </h3>
+                <span class="text-sm font-bold text-orange-700">
+                    الإجمالي: {{ number_format(array_sum(array_column($arrearsOwnerOverdue, 'remaining')), 2) }} ر.س
+                </span>
+            </div>
+
+            @if(count($arrearsOwnerOverdue) === 0)
+                <div class="px-6 py-10 text-center text-sm text-slate-400">لا توجد متأخرات على الملاك ✓</div>
+            @else
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-orange-50 text-right text-xs font-bold text-orange-800">
+                        <tr>
+                            <th class="px-5 py-3">المالك</th>
+                            <th class="px-5 py-3">العقار</th>
+                            <th class="px-5 py-3">تاريخ الاستحقاق</th>
+                            <th class="px-5 py-3">أيام التأخير</th>
+                            <th class="px-5 py-3">الإجمالي</th>
+                            <th class="px-5 py-3">المدفوع</th>
+                            <th class="px-5 py-3 text-orange-900">المتبقي</th>
+                            <th class="px-5 py-3">ملاحظات</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        @foreach($arrearsOwnerOverdue as $row)
+                        @php
+                            $days = $row['days_overdue'];
+                            $agingClass = match(true) {
+                                $days > 90 => 'text-rose-900 font-black',
+                                $days > 60 => 'text-rose-700 font-bold',
+                                $days > 30 => 'text-orange-600 font-semibold',
+                                default    => 'text-amber-600',
+                            };
+                        @endphp
+                        <tr class="hover:bg-slate-50 transition-colors">
+                            <td class="px-5 py-3.5 font-semibold text-slate-800">{{ $row['owner'] ?? '—' }}</td>
+                            <td class="px-5 py-3.5 text-slate-600">{{ $row['property'] ?? '—' }}</td>
+                            <td class="px-5 py-3.5 text-slate-700">
+                                {{ $row['due_date'] instanceof \Carbon\Carbon ? $row['due_date']->format('Y/m/d') : $row['due_date'] }}
+                            </td>
+                            <td class="px-5 py-3.5">
+                                <span class="{{ $agingClass }}">{{ $days }} يوم</span>
+                            </td>
+                            <td class="px-5 py-3.5 text-slate-700">{{ number_format($row['total_amount'], 2) }}</td>
+                            <td class="px-5 py-3.5 text-emerald-700 font-semibold">{{ number_format($row['paid'], 2) }}</td>
+                            <td class="px-5 py-3.5 font-black text-orange-700">{{ number_format($row['remaining'], 2) }}</td>
+                            <td class="px-5 py-3.5 max-w-xs">
+                                @if($row['notes'])
+                                    <div class="flex items-start gap-1.5">
+                                        <span class="mt-0.5 text-amber-500">📝</span>
+                                        <span class="text-xs text-slate-600 leading-relaxed">{{ $row['notes'] }}</span>
+                                    </div>
+                                @else
+                                    <span class="text-slate-300 text-xs">—</span>
+                                @endif
+                            </td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                    <tfoot class="bg-orange-50 text-sm font-bold border-t-2 border-orange-200">
+                        <tr>
+                            <td colspan="4" class="px-5 py-3 text-slate-700">الإجمالي</td>
+                            <td class="px-5 py-3 text-slate-800">{{ number_format(array_sum(array_column($arrearsOwnerOverdue, 'total_amount')), 2) }}</td>
+                            <td class="px-5 py-3 text-emerald-700">{{ number_format(array_sum(array_column($arrearsOwnerOverdue, 'paid')), 2) }}</td>
+                            <td class="px-5 py-3 text-orange-700">{{ number_format(array_sum(array_column($arrearsOwnerOverdue, 'remaining')), 2) }}</td>
                             <td></td>
                         </tr>
                     </tfoot>

@@ -164,29 +164,60 @@ class ReportsDashboard extends Component
 
     protected function buildArrearsExport(ReportFilters $filters): array
     {
-        $service  = app(ArrearsReportService::class);
-        $overdue  = $service->overdue($filters);
-        $headings = ['المستأجر', 'العقار', 'الوحدة', 'تاريخ الاستحقاق', 'أيام التأخير', 'الإجمالي (ر.س)', 'المدفوع (ر.س)', 'المتبقي (ر.س)', 'ملاحظات'];
-        $rows     = array_map(fn ($r) => [
-            $r['tenant']       ?? '—',
-            $r['property']     ?? '—',
-            $r['unit']         ?? '—',
-            $r['due_date'] instanceof \Carbon\Carbon ? $r['due_date']->format('Y/m/d') : $r['due_date'],
-            $r['days_overdue'],
-            $r['total_amount'],
-            $r['paid'],
-            $r['remaining'],
-            $r['notes'] ?? '',
-        ], $overdue);
+        $service      = app(ArrearsReportService::class);
+        $tenantRows   = $service->overdue($filters);
+        $ownerRows    = $service->ownerOverdue($filters);
 
-        // سطر الإجمالي
-        $rows[] = [
-            'الإجمالي', '', '', '', '',
-            array_sum(array_column($overdue, 'total_amount')),
-            array_sum(array_column($overdue, 'paid')),
-            array_sum(array_column($overdue, 'remaining')),
-            '',
-        ];
+        $headings = ['النوع', 'المستأجر / المالك', 'العقار', 'الوحدة', 'تاريخ الاستحقاق', 'أيام التأخير', 'الإجمالي (ر.س)', 'المدفوع (ر.س)', 'المتبقي (ر.س)', 'ملاحظات'];
+
+        $rows = [];
+
+        // ─ دفعات المستأجرين
+        foreach ($tenantRows as $r) {
+            $rows[] = [
+                'مستأجر',
+                $r['tenant']   ?? '—',
+                $r['property'] ?? '—',
+                $r['unit']     ?? '—',
+                $r['due_date'] instanceof \Carbon\Carbon ? $r['due_date']->format('Y/m/d') : $r['due_date'],
+                $r['days_overdue'],
+                $r['total_amount'],
+                $r['paid'],
+                $r['remaining'],
+                $r['notes'] ?? '',
+            ];
+        }
+        // سطر إجمالي المستأجرين
+        if (count($tenantRows)) {
+            $rows[] = ['إجمالي المستأجرين', '', '', '', '', '', array_sum(array_column($tenantRows, 'total_amount')), array_sum(array_column($tenantRows, 'paid')), array_sum(array_column($tenantRows, 'remaining')), ''];
+        }
+
+        // ─ فاصل
+        $rows[] = ['', '', '', '', '', '', '', '', '', ''];
+
+        // ─ دفعات الملاك
+        foreach ($ownerRows as $r) {
+            $rows[] = [
+                'مالك',
+                $r['owner']    ?? '—',
+                $r['property'] ?? '—',
+                '—',
+                $r['due_date'] instanceof \Carbon\Carbon ? $r['due_date']->format('Y/m/d') : $r['due_date'],
+                $r['days_overdue'],
+                $r['total_amount'],
+                $r['paid'],
+                $r['remaining'],
+                $r['notes'] ?? '',
+            ];
+        }
+        // سطر إجمالي الملاك
+        if (count($ownerRows)) {
+            $rows[] = ['إجمالي الملاك', '', '', '', '', '', array_sum(array_column($ownerRows, 'total_amount')), array_sum(array_column($ownerRows, 'paid')), array_sum(array_column($ownerRows, 'remaining')), ''];
+        }
+
+        // ─ الإجمالي الكلي
+        $allRows = array_merge($tenantRows, $ownerRows);
+        $rows[]  = ['الإجمالي الكلي', '', '', '', '', '', array_sum(array_column($allRows, 'total_amount')), array_sum(array_column($allRows, 'paid')), array_sum(array_column($allRows, 'remaining')), ''];
 
         return [$headings, $rows, 'تقرير-المتأخرات-'.now()->format('Ymd'), 'تقرير المتأخرات التفصيلي'];
     }
@@ -237,15 +268,16 @@ class ReportsDashboard extends Component
         $outgoing        = app(OutgoingReportService::class)->summary($filters);
         $net             = app(NetReportService::class)->summary($filters);
         $netByProperty   = app(NetReportService::class)->byProperty($filters);
-        $arrearsService  = app(ArrearsReportService::class);
-        $arrearsAging    = $arrearsService->aging($filters);
-        $arrearsOverdue  = $arrearsService->overdue($filters);
+        $arrearsService      = app(ArrearsReportService::class);
+        $arrearsAging        = $arrearsService->aging($filters);
+        $arrearsOverdue      = $arrearsService->overdue($filters);
+        $arrearsOwnerOverdue = $arrearsService->ownerOverdue($filters);
         $occupancy       = app(OccupancyReportService::class)->summary($filters);
         $maintenance     = app(MaintenanceReportService::class)->summary($filters);
 
         return view('livewire.reports.reports-dashboard', compact(
             'income', 'outgoing', 'net',
-            'arrearsAging', 'arrearsOverdue', 'occupancy', 'maintenance',
+            'arrearsAging', 'arrearsOverdue', 'arrearsOwnerOverdue', 'occupancy', 'maintenance',
             'netByProperty', 'properties', 'units'
         ))->layout('layouts.app', ['title' => 'التقارير']);
     }

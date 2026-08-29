@@ -16,6 +16,10 @@ class ContractSchedule extends Component
     public bool $showPaymentModal = false;
     public ?int $payingScheduleId = null;
 
+    public bool   $showNoteModal  = false;
+    public ?int   $noteScheduleId = null;
+    public string $noteText       = '';
+
     public array $paymentForm = [
         'amount'           => '',
         'payment_method'   => 'bank_transfer',
@@ -80,6 +84,23 @@ class ContractSchedule extends Component
 
         $this->showPaymentModal = false;
         $this->dispatch('notify', message: 'تم تسجيل الدفعة بنجاح');
+    }
+
+    public function openNoteModal(int $scheduleId): void
+    {
+        $schedule = PaymentSchedule::findOrFail($scheduleId);
+        $this->noteScheduleId = $schedule->id;
+        $this->noteText       = $schedule->notes ?? '';
+        $this->showNoteModal  = true;
+    }
+
+    public function saveNote(): void
+    {
+        PaymentSchedule::findOrFail($this->noteScheduleId)
+            ->update(['notes' => trim($this->noteText) ?: null]);
+
+        $this->showNoteModal = false;
+        $this->dispatch('notify', message: 'تم حفظ الملاحظة');
     }
 
     public function render()

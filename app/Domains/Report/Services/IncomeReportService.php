@@ -3,7 +3,6 @@
 namespace App\Domains\Report\Services;
 
 use App\Domains\Report\DTOs\ReportFilters;
-use App\Domains\Payment\Models\Payment;
 use App\Domains\Payment\Models\PaymentSchedule;
 use App\Domains\Property\Models\Property;
 use App\Enums\PaymentStatus;
@@ -12,25 +11,21 @@ class IncomeReportService
 {
     public function summary(ReportFilters $filters): array
     {
+        // نستخدم PaymentSchedule كأساس لكلا القيمتين لتوحيد الدلالة:
+        // required = مجموع الأقساط المطلوبة (due_date ضمن الفترة)
+        // paid     = مجموع paid_amount على نفس الأقساط (المدفوع فعلاً منها)
+        // هذا يمنع حالة تجاوز نسبة التحصيل 100% عند فلترة بتاريخ
         $scheduleQuery = PaymentSchedule::query();
         app(ReportQueryService::class)->applyScheduleFilters($scheduleQuery, $filters);
 
-        $required = (clone $scheduleQuery)->sum('total_amount');
-        $paid = Payment::query()
-            ->where('status', 'registered')
-            ->when($filters->dateFrom, fn ($q) => $q->whereDate('payment_date', '>=', $filters->dateFrom))
-            ->when($filters->dateTo, fn ($q) => $q->whereDate('payment_date', '<=', $filters->dateTo))
-            ->when($filters->propertyId, fn ($q) => $q->where('property_id', $filters->propertyId))
-            ->when($filters->unitId, fn ($q) => $q->where('unit_id', $filters->unitId))
-            ->when($filters->tenantId, fn ($q) => $q->where('tenant_id', $filters->tenantId))
-            ->sum('amount');
-
+        $required  = (clone $scheduleQuery)->sum('total_amount');
+        $paid      = (clone $scheduleQuery)->sum('paid_amount');
         $remaining = max($required - $paid, 0);
 
         return [
-            'required' => round($required, 2),
-            'paid' => round($paid, 2),
-            'remaining' => round($remaining, 2),
+            'required'        => round($required, 2),
+            'paid'            => round($paid, 2),
+            'remaining'       => round($remaining, 2),
             'collection_rate' => $required > 0 ? round(($paid / $required) * 100, 2) : 0,
         ];
     }

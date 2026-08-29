@@ -457,15 +457,19 @@ class PropertyIndex extends Component
 
         $periods = $lease->periods()->orderBy('period_no')->get();
 
+        // معامل الضريبة — يُطبَّق على الأقساط التلقائية لتتوافق مع الجدول اليدوي
+        $vatMultiplier = 1 + ((float) ($lease->vat_rate ?? 0) / 100);
+
         if ($periods->isNotEmpty()) {
-            // توليد جدول بالفترات المتصاعدة
+            // توليد جدول بالفترات المتصاعدة (المبالغ شاملة الضريبة)
             $installmentNo   = 1;
             $periodStartDate = Carbon::parse($lease->start_date);
 
             foreach ($periods as $period) {
                 $durationMonths     = (int) $period->duration_months;
                 $annualAmount       = (float) $period->annual_amount;
-                $periodTotal        = round($annualAmount * ($durationMonths / 12), 2);
+                // الضريبة تُضاف على مستوى الفترة
+                $periodTotal        = round($annualAmount * ($durationMonths / 12) * $vatMultiplier, 2);
                 $periodInstallments = max(1, (int) floor($durationMonths / $monthStep));
                 $baseAmount         = round($periodTotal / $periodInstallments, 2);
 
@@ -490,8 +494,8 @@ class PropertyIndex extends Component
 
             $lease->update(['installments_count' => $installmentNo - 1]);
         } else {
-            // بدون تصاعد — الطريقة الأصلية
-            $totalAmount  = round((float) $lease->total_amount, 2);
+            // بدون تصاعد — يستخدم total_with_vat ليتوافق مع الجدول اليدوي
+            $totalAmount  = round((float) ($lease->total_with_vat ?: $lease->total_amount), 2);
             $installments = $this->calculateLeaseInstallmentsCount($lease->start_date, $lease->end_date, $lease->payment_cycle);
             $baseAmount   = round($totalAmount / $installments, 2);
             $startDate    = Carbon::parse($lease->start_date);

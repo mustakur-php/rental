@@ -4,10 +4,12 @@ namespace App\Enums;
 
 enum ContractStatus: string
 {
-    case Draft = 'draft';
-    case Active = 'active';
-    case Ended = 'ended';
+    /** @todo غير مستخدم — العقود تُنشأ مباشرة بحالة Active */
+    case Draft     = 'draft';
+    case Active    = 'active';
+    case Ended     = 'ended';
     case EarlyEnded = 'early_ended';
     case Cancelled = 'cancelled';
-    case Renewed = 'renewed';
+    /** @todo غير مستخدم — محجوز لسير عمل التجديد مستقبلاً (previous_contract_id جاهز) */
+    case Renewed   = 'renewed';
 }

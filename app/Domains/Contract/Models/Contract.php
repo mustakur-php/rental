@@ -126,9 +126,8 @@ class Contract extends Model
 
     public function getRemainingBalanceAttribute(): float
     {
-        $required = $this->paymentSchedules()->sum('total_amount');
-        $paid = $this->payments()->where('status', 'registered')->sum('amount');
-
-        return round(max($required - $paid, 0), 2);
+        // نستخدم remaining_amount مباشرةً — يُصفَّر تلقائياً عند إلغاء الأقساط،
+        // مما يضمن عدم احتساب الأقساط الملغاة بعد إنهاء العقد مبكراً.
+        return round((float) $this->paymentSchedules()->sum('remaining_amount'), 2);
     }
 }

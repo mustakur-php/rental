@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Contracts;
 
+use App\Traits\HasPermissionGuard;
 use Livewire\Component;
 use App\Domains\Contract\Models\Contract;
 use App\Domains\Payment\Models\PaymentSchedule;
@@ -9,6 +10,7 @@ use App\Domains\Payment\Actions\RegisterPaymentAction;
 
 class ContractSchedule extends Component
 {
+    use HasPermissionGuard;
     public Contract $contract;
 
     public bool $showPaymentModal = false;
@@ -45,6 +47,7 @@ class ContractSchedule extends Component
 
     public function registerPayment(RegisterPaymentAction $action): void
     {
+        if (! $this->requirePermission('payments.create')) return;
         $this->validate([
             'paymentForm.amount'           => ['required', 'numeric', 'min:0.01'],
             'paymentForm.payment_method'   => ['required', 'string'],

@@ -23,14 +23,16 @@ class ArrearsReportService
             $remaining = max($schedule->total_amount - $paid, 0);
 
             return [
-                'tenant' => $schedule->contract?->tenant?->name,
-                'property' => $schedule->contract?->unit?->property?->name,
-                'unit' => $schedule->contract?->unit?->name,
-                'due_date' => $schedule->due_date,
+                'schedule_id'  => $schedule->id,
+                'tenant'       => $schedule->contract?->tenant?->name,
+                'property'     => $schedule->contract?->unit?->property?->name,
+                'unit'         => $schedule->contract?->unit?->name,
+                'due_date'     => $schedule->due_date,
                 'total_amount' => round($schedule->total_amount, 2),
-                'paid' => round($paid, 2),
-                'remaining' => round($remaining, 2),
+                'paid'         => round($paid, 2),
+                'remaining'    => round($remaining, 2),
                 'days_overdue' => Carbon::parse($schedule->due_date)->diffInDays(now()),
+                'notes'        => $schedule->notes,
             ];
         })->filter(fn ($row) => $row['remaining'] > 0)->values()->toArray();
     }

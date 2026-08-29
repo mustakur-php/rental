@@ -160,17 +160,22 @@ class ReportsDashboard extends Component
 
     protected function buildArrearsExport(ReportFilters $filters): array
     {
-        $aging    = app(ArrearsReportService::class)->aging($filters);
-        $headings = ['الفترة', 'المبلغ المتأخر (ر.س)'];
-        $rows     = [
-            ['0-30 يوم',  $aging['0_30']],
-            ['31-60 يوم', $aging['31_60']],
-            ['61-90 يوم', $aging['61_90']],
-            ['+90 يوم',   $aging['90_plus']],
-            ['الإجمالي',  array_sum($aging)],
-        ];
+        $service  = app(ArrearsReportService::class);
+        $overdue  = $service->overdue($filters);
+        $headings = ['المستأجر', 'العقار', 'الوحدة', 'تاريخ الاستحقاق', 'أيام التأخير', 'الإجمالي (ر.س)', 'المدفوع (ر.س)', 'المتبقي (ر.س)', 'ملاحظات'];
+        $rows     = array_map(fn ($r) => [
+            $r['tenant']       ?? '—',
+            $r['property']     ?? '—',
+            $r['unit']         ?? '—',
+            $r['due_date'] instanceof \Carbon\Carbon ? $r['due_date']->format('Y/m/d') : $r['due_date'],
+            $r['days_overdue'],
+            $r['total_amount'],
+            $r['paid'],
+            $r['remaining'],
+            $r['notes'] ?? '',
+        ], $overdue);
 
-        return [$headings, $rows, 'تقرير-المتأخرات-'.now()->format('Ymd'), 'تقرير المتأخرات'];
+        return [$headings, $rows, 'تقرير-المتأخرات-'.now()->format('Ymd'), 'تقرير المتأخرات التفصيلي'];
     }
 
     protected function buildOccupancyExport(ReportFilters $filters): array
@@ -215,17 +220,19 @@ class ReportsDashboard extends Component
             ->get(['id', 'property_id', 'name', 'code', 'internal_number']);
 
         // حساب بيانات التبويب النشط فقط + المشتركة
-        $income        = app(IncomeReportService::class)->summary($filters);
-        $outgoing      = app(OutgoingReportService::class)->summary($filters);
-        $net           = app(NetReportService::class)->summary($filters);
-        $netByProperty = app(NetReportService::class)->byProperty($filters);
-        $arrearsAging  = app(ArrearsReportService::class)->aging($filters);
-        $occupancy     = app(OccupancyReportService::class)->summary($filters);
-        $maintenance   = app(MaintenanceReportService::class)->summary($filters);
+        $income          = app(IncomeReportService::class)->summary($filters);
+        $outgoing        = app(OutgoingReportService::class)->summary($filters);
+        $net             = app(NetReportService::class)->summary($filters);
+        $netByProperty   = app(NetReportService::class)->byProperty($filters);
+        $arrearsService  = app(ArrearsReportService::class);
+        $arrearsAging    = $arrearsService->aging($filters);
+        $arrearsOverdue  = $arrearsService->overdue($filters);
+        $occupancy       = app(OccupancyReportService::class)->summary($filters);
+        $maintenance     = app(MaintenanceReportService::class)->summary($filters);
 
         return view('livewire.reports.reports-dashboard', compact(
             'income', 'outgoing', 'net',
-            'arrearsAging', 'occupancy', 'maintenance',
+            'arrearsAging', 'arrearsOverdue', 'occupancy', 'maintenance',
             'netByProperty', 'properties', 'units'
         ))->layout('layouts.app', ['title' => 'التقارير']);
     }

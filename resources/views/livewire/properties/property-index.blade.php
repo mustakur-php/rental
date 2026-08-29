@@ -547,14 +547,14 @@
                         </ul>
                     </div>
                 @endif
-            </div>
 
-            {{-- مرفقات العقد — تظهر فقط عند تعديل عقار مستأجر موجود --}}
-            @if($showEditModal && $editingLease)
-            <div class="border-t border-slate-100 px-6 py-4">
-                <livewire:attachment-manager :attachable="$editingLease" :key="'lease-'.$editingLease->id" />
+                {{-- مرفقات العقد — داخل منطقة السكرول --}}
+                @if($showEditModal && $editingLease)
+                <div class="border-t border-slate-200 pt-4 mt-2">
+                    <livewire:attachment-manager :attachable="$editingLease" :key="'lease-'.$editingLease->id" />
+                </div>
+                @endif
             </div>
-            @endif
 
             <div class="flex justify-end gap-3 border-t border-slate-100 px-6 py-4">
                 <button wire:click="$set('{{ $showCreateModal ? 'showCreateModal' : 'showEditModal' }}', false)" class="erp-btn-soft">إلغاء</button>

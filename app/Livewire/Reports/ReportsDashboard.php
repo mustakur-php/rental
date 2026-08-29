@@ -179,6 +179,15 @@ class ReportsDashboard extends Component
             $r['notes'] ?? '',
         ], $overdue);
 
+        // سطر الإجمالي
+        $rows[] = [
+            'الإجمالي', '', '', '', '',
+            array_sum(array_column($overdue, 'total_amount')),
+            array_sum(array_column($overdue, 'paid')),
+            array_sum(array_column($overdue, 'remaining')),
+            '',
+        ];
+
         return [$headings, $rows, 'تقرير-المتأخرات-'.now()->format('Ymd'), 'تقرير المتأخرات التفصيلي'];
     }
 

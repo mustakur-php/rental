@@ -65,10 +65,14 @@ class ReportsDashboard extends Component
             'mode'         => 'utf-8',
             'format'       => 'A4-L',
             'direction'    => 'rtl',
-            'default_font' => 'Cairo',
+            'default_font' => 'cairo',
             'fontDir'      => [storage_path('fonts/')],
             'fontdata'     => [
-                'arial' => ['R' => 'Cairo-Regular.ttf'],
+                'cairo' => [
+                    'R'          => 'Cairo-Regular.ttf',
+                    'useOTL'     => 0xFF,
+                    'useKashida' => 75,
+                ],
             ],
             'margin_top'    => 15,
             'margin_bottom' => 15,

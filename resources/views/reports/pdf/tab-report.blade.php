@@ -78,7 +78,8 @@
                     @foreach($row as $cell)
                         <td>
                             @if(is_numeric($cell) && !str_contains((string)$cell, '%') && !str_contains((string)$cell, '/'))
-                                {{ number_format((float)$cell, 2) }}
+                                @php $fv = (float)$cell; @endphp
+                                {{ $fv == (int)$fv ? number_format((int)$fv) : number_format($fv, 2) }}
                             @else
                                 {{ $cell }}
                             @endif

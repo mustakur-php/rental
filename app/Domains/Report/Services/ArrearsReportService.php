@@ -31,7 +31,7 @@ class ArrearsReportService
                 'total_amount' => round($schedule->total_amount, 2),
                 'paid'         => round($paid, 2),
                 'remaining'    => round($remaining, 2),
-                'days_overdue' => Carbon::parse($schedule->due_date)->diffInDays(now()),
+                'days_overdue' => (int) Carbon::parse($schedule->due_date)->diffInDays(now()->startOfDay()),
                 'notes'        => $schedule->notes,
             ];
         })->filter(fn ($row) => $row['remaining'] > 0)->values()->toArray();

@@ -120,23 +120,13 @@ class TenantSchedulesIndex extends Component
 
     public function render()
     {
-        $schedules = PaymentSchedule::query()
-            ->with(['contract.tenant', 'contract.unit.property'])
-            ->when($this->status, fn ($q) => $q->where('status', $this->status))
-            ->when($this->property, fn ($q) => $q->whereHas(
-                'contract.unit', fn ($q) => $q->where('property_id', $this->property)
-            ))
-            ->when($this->search, fn ($q) => $q->whereHas(
-                'contract', fn ($q) => $q
-                    ->whereHas('tenant', fn ($q) => $q->where('name', 'like', "%{$this->search}%"))
-                    ->orWhere('code', 'like', "%{$this->search}%")
-            ))
-            ->orderBy('due_date')
-            ->paginate(20);
-
-        $properties = Property::notArchived()->orderBy('name')->get(['id', 'name']);
-
-        $baseQuery = PaymentSchedule::query()
+        // الاستعلام الأساسي: استثناء العقود المؤرشفة والأقساط الملغاة (ما لم يُختَر فلتر "ملغي" صراحةً)
+        $base = PaymentSchedule::query()
+            ->whereHas('contract', fn ($q) => $q->whereNull('archived_at'))
+            ->when(
+                $this->status !== 'cancelled',
+                fn ($q) => $q->where('status', '!=', 'cancelled')
+            )
             ->when($this->status, fn ($q) => $q->where('status', $this->status))
             ->when($this->property, fn ($q) => $q->whereHas(
                 'contract.unit', fn ($q) => $q->where('property_id', $this->property)
@@ -147,11 +137,31 @@ class TenantSchedulesIndex extends Component
                     ->orWhere('code', 'like', "%{$this->search}%")
             ));
 
+        $schedules = (clone $base)
+            ->with(['contract.tenant', 'contract.unit.property'])
+            ->orderBy('due_date')
+            ->paginate(20);
+
+        $properties = Property::notArchived()->orderBy('name')->get(['id', 'name']);
+
+        // KPIs: تستثني الأقساط الملغاة دائماً بغض النظر عن الفلتر
+        $kpiBase = PaymentSchedule::query()
+            ->whereHas('contract', fn ($q) => $q->whereNull('archived_at'))
+            ->where('status', '!=', 'cancelled')
+            ->when($this->property, fn ($q) => $q->whereHas(
+                'contract.unit', fn ($q) => $q->where('property_id', $this->property)
+            ))
+            ->when($this->search, fn ($q) => $q->whereHas(
+                'contract', fn ($q) => $q
+                    ->whereHas('tenant', fn ($q) => $q->where('name', 'like', "%{$this->search}%"))
+                    ->orWhere('code', 'like', "%{$this->search}%")
+            ));
+
         $totals = [
-            'total'     => (clone $baseQuery)->sum('total_amount'),
-            'paid'      => (clone $baseQuery)->sum('paid_amount'),
-            'remaining' => (clone $baseQuery)->sum('remaining_amount'),
-            'overdue'   => (clone $baseQuery)->where('status', 'overdue')->sum('remaining_amount'),
+            'total'     => (clone $kpiBase)->sum('total_amount'),
+            'paid'      => (clone $kpiBase)->sum('paid_amount'),
+            'remaining' => (clone $kpiBase)->sum('remaining_amount'),
+            'overdue'   => (clone $kpiBase)->where('status', 'overdue')->sum('remaining_amount'),
         ];
 
         return view('livewire.payments.tenant-schedules-index', compact('schedules', 'properties', 'totals'))

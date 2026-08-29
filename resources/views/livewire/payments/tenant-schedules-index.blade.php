@@ -38,6 +38,7 @@
             <option value="partial">جزئي</option>
             <option value="overdue">متأخر</option>
             <option value="paid">مدفوع</option>
+            <option value="cancelled">ملغي</option>
         </select>
 
         <select wire:model.live="property" class="erp-select w-auto">

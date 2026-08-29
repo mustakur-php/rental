@@ -6,6 +6,7 @@ use App\Traits\HasPermissionGuard;
 use Livewire\Component;
 use Livewire\WithPagination;
 use App\Domains\Tenant\Models\Tenant;
+use App\Domains\Contract\Models\Contract;
 
 class TenantIndex extends Component
 {
@@ -111,6 +112,18 @@ class TenantIndex extends Component
     public function archiveTenant(int $tenantId): void
     {
         if (! $this->requirePermission('tenants.archive')) return;
+
+        // منع الأرشفة إذا كان للمستأجر عقود نشطة غير مؤرشفة
+        $activeContracts = Contract::notArchived()
+            ->where('tenant_id', $tenantId)
+            ->where('status', 'active')
+            ->count();
+
+        if ($activeContracts > 0) {
+            $this->dispatch('notify', message: 'لا يمكن أرشفة المستأجر — لديه ' . $activeContracts . ' عقد نشط. أنهِ العقود أولاً.');
+            return;
+        }
+
         Tenant::findOrFail($tenantId)->update([
             'archived_at' => now(),
             'archived_reason' => 'archived_from_tenants',

@@ -80,14 +80,22 @@ class TenantSchedulesIndex extends Component
             'paymentForm.reference_number.max'      => 'رقم المرجع يجب ألا يتجاوز 100 حرف',
         ]);
 
-        $action->execute([
-            'payment_schedule_id' => $this->payingScheduleId,
-            'amount'              => $this->paymentForm['amount'],
-            'payment_method'      => $this->paymentForm['payment_method'],
-            'paid_at'             => $this->paymentForm['paid_at'],
-            'reference_number'    => $this->paymentForm['reference_number'] ?: null,
-            'notes'               => $this->paymentForm['notes'] ?: null,
-        ]);
+        try {
+            $action->execute([
+                'payment_schedule_id' => $this->payingScheduleId,
+                'amount'              => $this->paymentForm['amount'],
+                'payment_method'      => $this->paymentForm['payment_method'],
+                'paid_at'             => $this->paymentForm['paid_at'],
+                'reference_number'    => $this->paymentForm['reference_number'] ?: null,
+                'notes'               => $this->paymentForm['notes'] ?: null,
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            // إعادة تعيين مفاتيح الخطأ من Action (مثل 'amount') إلى مفاتيح الواجهة (paymentForm.amount)
+            foreach ($e->errors() as $field => $messages) {
+                $this->addError('paymentForm.' . $field, $messages[0]);
+            }
+            return;
+        }
 
         $this->showPaymentModal = false;
         $this->dispatch('notify', message: 'تم تسجيل الدفعة بنجاح');

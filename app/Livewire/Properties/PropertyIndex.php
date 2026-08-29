@@ -290,12 +290,22 @@ class PropertyIndex extends Component
             'archived_reason' => 'property_archived',
         ]);
 
+        // أرشفة عقود المستأجرين النشطة على وحدات هذا العقار
+        \App\Domains\Contract\Models\Contract::query()
+            ->notArchived()
+            ->whereHas('unit', fn ($q) => $q->where('property_id', $property->id))
+            ->whereIn('status', ['active'])
+            ->update([
+                'archived_at'     => now(),
+                'archived_reason' => 'property_archived',
+            ]);
+
         $property->activeLease?->update([
             'archived_at' => now(),
             'archived_reason' => 'property_archived',
         ]);
 
-        $this->dispatch('notify', message: 'تم نقل العقار ووحداته إلى الأرشيف');
+        $this->dispatch('notify', message: 'تم نقل العقار ووحداته وعقوده إلى الأرشيف');
     }
 
     // ─── الجدول اليدوي (ملاك العقارات) ──────────────
@@ -527,7 +537,7 @@ class PropertyIndex extends Component
         $monthStep = $this->leaseCycleMonths($cycle);
 
         $totalMonths = (int) $start->diffInMonths($end->copy()->addDay());
-        return max(1, (int) floor($totalMonths / $monthStep));
+        return max(1, (int) ceil($totalMonths / $monthStep));
     }
 
     protected function leaseCycleMonths(string $cycle): int
@@ -609,19 +619,20 @@ class PropertyIndex extends Component
             $count = 0;
             foreach ($this->lease_periods as $p) {
                 $months  = (int) ($p['duration_months'] ?? 0);
-                $count  += max(1, (int) floor($months / $step));
+                $count  += max(1, (int) ceil($months / $step));
             }
             return $count;
         }
 
         $months = $this->calcLeaseDurationMonths();
         if (! $months) return 0;
-        return max(1, (int) floor($months / $step));
+        return max(1, (int) ceil($months / $step));
     }
 
     private function calcLeaseInstallmentAmount(): float
     {
-        $total = $this->calcLeaseTotalAmount();
+        // يستخدم الإجمالي شامل الضريبة ليطابق القسط الفعلي المولَّد
+        $total = $this->calcLeaseTotalWithVat() ?: $this->calcLeaseTotalAmount();
         $count = $this->calcLeaseInstallmentsCount();
         if (! $count || ! $total) return 0.0;
         return round($total / $count, 2);

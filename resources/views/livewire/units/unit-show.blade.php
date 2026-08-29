@@ -42,7 +42,7 @@
             <h3 class="mb-4 text-lg font-bold">العقد الحالي</h3>
             <div class="grid gap-4 md:grid-cols-3 text-sm">
                 <div><span class="text-slate-500">المستأجر:</span> <b>{{ $unit->activeContract->tenant->name ?? '—' }}</b></div>
-                <div><span class="text-slate-500">الإجمالي:</span> <b>{{ number_format($unit->activeContract->total_amount ?? 0, 2) }}</b></div>
+                <div><span class="text-slate-500">الإجمالي:</span> <b>{{ number_format($unit->activeContract->total_with_vat ?? $unit->activeContract->total_contract_amount ?? 0, 2) }}</b></div>
                 <div>
                     <a href="{{ route('contracts.schedule', $unit->activeContract) }}" class="erp-btn-soft">جدول الدفعات</a>
                 </div>

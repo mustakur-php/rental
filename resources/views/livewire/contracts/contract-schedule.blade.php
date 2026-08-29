@@ -153,9 +153,10 @@
                     </select>
                 </div>
                 <div>
-                    <label class="erp-label">رقم المرجع / الحوالة</label>
-                    <input wire:model="paymentForm.reference_number" class="erp-input"
-                        placeholder="اختياري">
+                    <label class="erp-label">رقم المرجع / الحوالة *</label>
+                    <input wire:model="paymentForm.reference_number" class="erp-input {{ $errors->has('paymentForm.reference_number') ? 'erp-input-error' : '' }}"
+                        placeholder="رقم الحوالة أو المرجع">
+                    @error('paymentForm.reference_number') <p class="erp-field-error">{{ $message }}</p> @enderror
                 </div>
                 <div>
                     <label class="erp-label">ملاحظات</label>

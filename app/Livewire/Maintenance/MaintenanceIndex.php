@@ -80,6 +80,9 @@ class MaintenanceIndex extends Component
 
         MaintenanceRequest::create($data);
 
+        // تحديث حالة الوحدة بناءً على unit_impact
+        $this->applyUnitImpact($data['unit_id'], $data['unit_impact'] ?? 'none', $data['status'] ?? 'new');
+
         $this->showCreateModal = false;
         $this->dispatch('notify', message: 'تم إضافة طلب الصيانة بنجاح');
     }
@@ -116,8 +119,38 @@ class MaintenanceIndex extends Component
 
         $request->update($data);
 
+        // تحديث حالة الوحدة بناءً على unit_impact والحالة الجديدة
+        $this->applyUnitImpact($data['unit_id'], $data['unit_impact'] ?? 'none', $data['status'] ?? 'new');
+
         $this->showEditModal = false;
         $this->dispatch('notify', message: 'تم تحديث طلب الصيانة');
+    }
+
+    /**
+     * تطبيق أثر الصيانة على حالة الوحدة:
+     * - إذا unit_impact = maintenance/unavailable والطلب نشط → تغيير حالة الوحدة
+     * - إذا الطلب مكتمل أو ملغى → إرجاع الوحدة إلى شاغرة (إذا لم تكن مؤجرة)
+     */
+    private function applyUnitImpact(?int $unitId, string $impact, string $status): void
+    {
+        if (! $unitId) return;
+        $unit = Unit::notArchived()->find($unitId);
+        if (! $unit) return;
+
+        $isActive = in_array($status, ['new', 'in_progress']);
+        $isDone   = in_array($status, ['completed', 'cancelled']);
+
+        if ($isActive && in_array($impact, ['maintenance', 'unavailable'])) {
+            // لا نُغيّر حالة وحدة مؤجرة
+            if ($unit->status?->value !== 'rented') {
+                $unit->update(['status' => $impact]);
+            }
+        } elseif ($isDone && in_array($impact, ['maintenance', 'unavailable'])) {
+            // إرجاع الوحدة لشاغرة إذا لم تكن مؤجرة
+            if (in_array($unit->status?->value ?? $unit->status, ['maintenance', 'unavailable'])) {
+                $unit->update(['status' => 'vacant']);
+            }
+        }
     }
 
     protected function rules(): array

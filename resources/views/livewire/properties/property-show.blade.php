@@ -148,10 +148,9 @@
 
                     <div>
                         <label class="erp-label">الحالة</label>
+                        {{-- 'مؤجرة' محذوفة — تُعيَّن تلقائياً عند إنشاء عقد --}}
                         <select wire:model="unitForm.status" class="erp-select">
                             <option value="vacant">شاغرة</option>
-                            <option value="rented">مؤجرة</option>
-                            <option value="reserved">محجوزة</option>
                             <option value="maintenance">تحت الصيانة</option>
                             <option value="unavailable">غير متاحة</option>
                         </select>

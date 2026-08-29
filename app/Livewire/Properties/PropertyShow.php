@@ -144,7 +144,8 @@ class PropertyShow extends Component
             'unitForm.electricity_meter'=> ['nullable', 'string', 'max:120'],
             'unitForm.water_meter'      => ['nullable', 'string', 'max:120'],
             'unitForm.description'      => ['nullable', 'string'],
-            'unitForm.status'           => ['required', 'string', 'max:30'],
+            // 'rented' ممنوع يدوياً — يُعيَّن تلقائياً عند إنشاء عقد فقط
+            'unitForm.status'           => ['required', 'in:vacant,maintenance,unavailable'],
         ];
     }
 

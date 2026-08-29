@@ -366,14 +366,14 @@ class CreateContractWizard extends Component
             $count = 0;
             foreach ($this->periods as $p) {
                 $months  = (int) ($p['duration_months'] ?? 0);
-                $count  += max(1, (int) floor($months / $step));
+                $count  += max(1, (int) ceil($months / $step));
             }
             return $count;
         }
 
         $months = $this->calcDurationMonths();
         if (! $months) return 0;
-        return max(1, (int) floor($months / $step));
+        return max(1, (int) ceil($months / $step));
     }
 
     private function calcInstallmentAmount(): float

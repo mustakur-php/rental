@@ -92,8 +92,10 @@ class CreateContractAction
         // addMonthsNoOverflow when the start day exceeds the target month's length
         // (e.g. May 31 → Jun 30 → ... → May 28, which wrongly fits a 13th iteration
         // inside a May 31–May 30 contract).
+        // Use ceil so a ~35-month annual contract produces 3 payments (months 1, 13, 25)
+        // instead of 2 — floor(35/12)=2 while ceil(35/12)=3, which is correct.
         $totalMonths = (int) $start->diffInMonths($end->copy()->addDay());
-        $count       = (int) floor($totalMonths / $monthStep);
+        $count       = (int) ceil($totalMonths / $monthStep);
 
         return max(1, $count);
     }

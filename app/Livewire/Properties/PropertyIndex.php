@@ -9,12 +9,14 @@ use App\Domains\Property\Models\PropertyLeasePeriod;
 use App\Domains\Property\Models\PropertyLeaseSchedule;
 use App\Traits\HasPermissionGuard;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 use Livewire\WithPagination;
 
 class PropertyIndex extends Component
 {
-    use WithPagination, HasPermissionGuard;
+    use WithPagination, WithFileUploads, HasPermissionGuard;
 
     public string $search   = '';
     public string $status   = '';
@@ -24,6 +26,7 @@ class PropertyIndex extends Component
     public bool $showEditModal   = false;
     public ?int  $editingPropertyId = null;
     public ?PropertyLease $editingLease = null;
+    public $lease_contract_file = null;
 
     // تصاعد إيجار العقار (مستأجر)
     public bool  $has_lease_escalation = false;
@@ -104,6 +107,7 @@ class PropertyIndex extends Component
         $this->lease_schedule_mode    = 'auto';
         $this->lease_manual_schedules = [['due_date' => '', 'amount' => '']];
         $this->editingLease           = null;
+        $this->lease_contract_file    = null;
         $this->showCreateModal = true;
     }
 
@@ -193,6 +197,7 @@ class PropertyIndex extends Component
             'lease_vat_rate'         => $lease?->vat_rate ?? 0,
         ];
         $this->editingLease = $lease;
+        $this->lease_contract_file = null;
         // تحميل وضع الجدول
         $this->lease_schedule_mode    = 'auto';
         $this->lease_manual_schedules = [['due_date' => '', 'amount' => '']];
@@ -266,6 +271,7 @@ class PropertyIndex extends Component
                 }
 
                 $this->syncLeaseSchedules($existing);
+                $this->storeLeaseContractAttachment($existing);
             } else {
                 $this->createLeaseForProperty($property);
             }
@@ -434,6 +440,24 @@ class PropertyIndex extends Component
         }
 
         $this->syncLeaseSchedules($lease);
+        $this->storeLeaseContractAttachment($lease);
+    }
+
+    protected function storeLeaseContractAttachment(PropertyLease $lease): void
+    {
+        if (! $this->lease_contract_file) {
+            return;
+        }
+
+        // حذف الملف القديم إن وُجد
+        if ($lease->contract_file_path) {
+            Storage::disk('public')->delete($lease->contract_file_path);
+        }
+
+        $path = $this->lease_contract_file->store('owner-contracts', 'public');
+        $lease->update(['contract_file_path' => $path]);
+
+        $this->lease_contract_file = null;
     }
 
     protected function syncLeaseSchedules(PropertyLease $lease): void
@@ -578,6 +602,7 @@ class PropertyIndex extends Component
             'form.lease_annual_rent'     => [$isLeased ? 'required' : 'nullable', 'numeric', 'min:1'],
             'form.lease_payment_cycle'   => ['required', 'string'],
             'form.lease_vat_rate'        => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'lease_contract_file'         => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
         ];
     }
 

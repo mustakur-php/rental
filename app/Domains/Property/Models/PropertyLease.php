@@ -8,12 +8,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use App\Domains\Property\Models\PropertyLeasePeriod;
+use Illuminate\Support\Facades\Storage;
 
 class PropertyLease extends Model
 {
     protected $fillable = [
         'property_id', 'owner_name', 'owner_mobile', 'owner_iban',
-        'lease_contract_number', 'start_date', 'end_date',
+        'lease_contract_number', 'contract_file_path', 'start_date', 'end_date',
         'total_amount', 'vat_rate', 'vat_amount', 'total_with_vat',
         'payment_cycle', 'installments_count',
         'status', 'notes', 'archived_at', 'archived_reason', 'archived_notes',

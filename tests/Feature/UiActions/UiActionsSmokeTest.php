@@ -13,8 +13,11 @@ use App\Domains\Tenant\Models\Tenant;
 use App\Domains\Unit\Models\Unit;
 use App\Livewire\Maintenance\MaintenanceIndex;
 use App\Livewire\Payments\LeaseSchedulesIndex;
+use App\Livewire\Properties\PropertyIndex;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -134,6 +137,39 @@ class UiActionsSmokeTest extends TestCase
 
         $this->assertSame(120000.0, (float) $schedule->fresh()->remaining_amount);
         $this->assertSame('pending', $schedule->fresh()->status);
+    }
+
+    public function test_owner_contract_attachment_is_uploaded_when_creating_leased_property(): void
+    {
+        Storage::fake('public');
+        $this->loginAsSuperAdmin();
+        $company = Company::create([
+            'code' => 'COMP-LEASE',
+            'name' => 'Lease Company',
+            'status' => 'active',
+        ]);
+
+        Livewire::test(PropertyIndex::class)
+            ->set('form.company_id', $company->id)
+            ->set('form.code', 'PROP-LEASE-UPLOAD')
+            ->set('form.name', 'Leased Upload Property')
+            ->set('form.type', 'commercial_complex')
+            ->set('form.ownership_type', 'leased')
+            ->set('form.status', 'active')
+            ->set('form.owner_name', 'Owner Upload')
+            ->set('form.lease_start_date', '2026-01-01')
+            ->set('form.lease_end_date', '2026-12-31')
+            ->set('form.lease_annual_rent', 120000)
+            ->set('form.lease_payment_cycle', 'annually')
+            ->set('lease_contract_file', UploadedFile::fake()->create('owner-contract.pdf', 120, 'application/pdf'))
+            ->call('createProperty')
+            ->assertHasNoErrors();
+
+        $lease = PropertyLease::where('owner_name', 'Owner Upload')->firstOrFail();
+
+        $this->assertNotNull($lease->contract_file_path);
+        $this->assertStringStartsWith('owner-contracts/', $lease->contract_file_path);
+        Storage::disk('public')->assertExists($lease->contract_file_path);
     }
 
     private function createProperty(array $attributes = []): Property

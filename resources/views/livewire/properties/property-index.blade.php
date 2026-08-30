@@ -1,4 +1,4 @@
-﻿<div class="erp-container">
+<div class="erp-container">
 
     {{-- Header --}}
     <x-page-header title="العقارات" subtitle="إدارة العقارات المملوكة والمستأجرة مع إحصائياتها">

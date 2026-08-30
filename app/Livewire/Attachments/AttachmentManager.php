@@ -18,26 +18,30 @@ class AttachmentManager extends Component
     public function upload(): void
     {
         $this->validate([
-            'file' => ['required', 'file', 'max:10240'],
+            'file'     => ['required', 'file', 'max:20480'], // 20 MB — يتوافق مع upload_max_filesize على السيرفر
             'category' => ['required', 'string', 'max:100'],
+        ], [
+            'file.required' => 'يرجى اختيار ملف أولاً',
+            'file.max'      => 'حجم الملف يجب ألا يتجاوز 20 ميجابايت',
         ]);
 
         $path = $this->file->store('attachments', 'public');
 
         $this->attachable->attachments()->create([
             'original_name' => $this->file->getClientOriginalName(),
-            'stored_name' => basename($path),
-            'disk' => 'public',
-            'path' => $path,
-            'mime_type' => $this->file->getMimeType(),
-            'size_bytes' => $this->file->getSize(),
-            'file_type' => str_starts_with((string) $this->file->getMimeType(), 'image/') ? 'image' : 'document',
-            'category' => $this->category,
+            'stored_name'   => basename($path),
+            'disk'          => 'public',
+            'path'          => $path,
+            'mime_type'     => $this->file->getMimeType(),
+            'size_bytes'    => $this->file->getSize(),
+            'file_type'     => str_starts_with((string) $this->file->getMimeType(), 'image/') ? 'image' : 'document',
+            'category'      => $this->category,
         ]);
 
         $this->reset(['file', 'category']);
         $this->category = 'other';
         $this->attachable = $this->attachable->fresh(['attachments']);
+        $this->dispatch('notify', message: 'تم رفع المرفق بنجاح');
     }
 
     public function preview(int $attachmentId): void

@@ -17,11 +17,25 @@
                 <option value="invoice">فاتورة</option>
             </select>
 
-            <input type="file" wire:model="file" class="md:col-span-2 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm">
+            <div class="md:col-span-2">
+                <input type="file" wire:model="file"
+                    class="w-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm
+                           {{ $errors->has('file') ? 'border-rose-400 bg-rose-50' : '' }}">
+                @error('file')
+                    <p class="mt-1 text-xs font-semibold text-rose-600">{{ $message }}</p>
+                @enderror
+                <div wire:loading wire:target="file" class="mt-1 text-xs text-slate-400">
+                    جارٍ تحميل الملف...
+                </div>
+            </div>
         </div>
 
-        <button wire:click="upload" class="mt-4 rounded-2xl bg-rose-700 px-5 py-3 text-sm font-semibold text-white shadow-sm">
-            رفع المرفق
+        <button wire:click="upload"
+                wire:loading.attr="disabled"
+                wire:loading.class="opacity-60 cursor-not-allowed"
+                class="mt-4 rounded-2xl bg-rose-700 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-rose-800 transition">
+            <span wire:loading.remove wire:target="upload">رفع المرفق</span>
+            <span wire:loading wire:target="upload">جارٍ الرفع...</span>
         </button>
     </div>
 

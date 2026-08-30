@@ -139,9 +139,8 @@ class UiActionsSmokeTest extends TestCase
         $this->assertSame('pending', $schedule->fresh()->status);
     }
 
-    public function test_owner_contract_attachment_is_uploaded_when_creating_leased_property(): void
+    public function test_creating_leased_property_dispatches_lease_created_event(): void
     {
-        Storage::fake('public');
         $this->loginAsSuperAdmin();
         $company = Company::create([
             'code' => 'COMP-LEASE',
@@ -161,15 +160,43 @@ class UiActionsSmokeTest extends TestCase
             ->set('form.lease_end_date', '2026-12-31')
             ->set('form.lease_annual_rent', 120000)
             ->set('form.lease_payment_cycle', 'annually')
-            ->set('lease_contract_file', UploadedFile::fake()->create('owner-contract.pdf', 120, 'application/pdf'))
             ->call('createProperty')
-            ->assertHasNoErrors();
+            ->assertHasNoErrors()
+            ->assertDispatched('lease-created');
+    }
 
-        $lease = PropertyLease::where('owner_name', 'Owner Upload')->firstOrFail();
+    public function test_lease_contract_upload_saves_file_to_contract_file_path(): void
+    {
+        Storage::fake('public');
+        $this->loginAsSuperAdmin();
 
-        $this->assertNotNull($lease->contract_file_path);
-        $this->assertStringStartsWith('owner-contracts/', $lease->contract_file_path);
-        Storage::disk('public')->assertExists($lease->contract_file_path);
+        $property = $this->createProperty(['ownership_type' => 'owned']);
+        $lease = PropertyLease::create([
+            'property_id'        => $property->id,
+            'owner_name'         => 'Test Owner',
+            'start_date'         => '2026-01-01',
+            'end_date'           => '2026-12-31',
+            'total_amount'       => 120000,
+            'vat_rate'           => 0,
+            'vat_amount'         => 0,
+            'total_with_vat'     => 120000,
+            'payment_cycle'      => 'annually',
+            'installments_count' => 1,
+            'status'             => 'active',
+        ]);
+
+        Livewire::test(\App\Livewire\Properties\LeaseContractUpload::class, [
+            'leaseId'     => $lease->id,
+            'currentPath' => null,
+        ])
+            ->set('file', UploadedFile::fake()->create('owner-contract.pdf', 120, 'application/pdf'))
+            ->call('save')
+            ->assertHasNoErrors()
+            ->assertDispatched('notify');
+
+        $this->assertNotNull($lease->fresh()->contract_file_path);
+        $this->assertStringStartsWith('owner-contracts/', $lease->fresh()->contract_file_path);
+        Storage::disk('public')->assertExists($lease->fresh()->contract_file_path);
     }
 
     private function createProperty(array $attributes = []): Property

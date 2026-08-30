@@ -284,15 +284,9 @@
                             <x-rental.input label="IBAN المالك" wire:model="form.owner_iban" />
                             <x-rental.input label="رقم عقد الإيجار" wire:model="form.lease_contract_number" />
                             <div class="md:col-span-2">
-                                <label class="text-sm font-bold text-slate-700">نسخة عقد المالك</label>
-                                <input type="file" wire:model="lease_contract_file"
-                                    class="mt-2 w-full rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-3 text-sm {{ $errors->has('lease_contract_file') ? 'border-rose-300 bg-rose-50' : '' }}">
-                                <div wire:loading wire:target="lease_contract_file" class="mt-1 text-xs text-slate-400">
-                                    جارٍ تحميل الملف...
-                                </div>
-                                @error('lease_contract_file')
-                                    <p class="mt-1 text-xs text-rose-600">{{ $message }}</p>
-                                @enderror
+                                <livewire:properties.lease-contract-upload
+                                    :leaseId="null"
+                                    :key="'create-contract-upload'" />
                             </div>
                             <div>
                                 <label class="text-sm font-bold text-slate-700">تاريخ البداية *</label>
@@ -559,17 +553,13 @@
                     </div>
                 @endif
 
-                {{-- عرض الملف الحالي في التعديل --}}
-                @if($showEditModal && $editingLease?->contract_file_path)
+                {{-- رفع/عرض عقد المالك في وضع التعديل --}}
+                @if($showEditModal && $editingLease)
                 <div class="border-t border-slate-200 pt-4 mt-2">
-                    <p class="text-sm font-bold text-slate-700 mb-2">الملف الحالي</p>
-                    <a href="{{ Storage::url($editingLease->contract_file_path) }}"
-                       target="_blank"
-                       class="inline-flex items-center gap-2 rounded-2xl bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100 transition">
-                        📄 {{ basename($editingLease->contract_file_path) }}
-                        <span class="text-xs text-indigo-400">(فتح / تحميل)</span>
-                    </a>
-                    <p class="mt-1 text-xs text-slate-400">رفع ملف جديد أعلاه سيحل محل هذا الملف تلقائياً</p>
+                    <livewire:properties.lease-contract-upload
+                        :leaseId="$editingLease->id"
+                        :currentPath="$editingLease->contract_file_path"
+                        :key="'edit-contract-'.$editingLease->id" />
                 </div>
                 @endif
             </div>

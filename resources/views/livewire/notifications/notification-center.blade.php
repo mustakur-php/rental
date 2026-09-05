@@ -32,75 +32,14 @@
         </x-slot:action>
     </x-sync-stale-warning>
 
-    {{-- ═══ إحصاء سريع ═══ --}}
-    <div class="mb-6 grid gap-4 md:grid-cols-5">
-        @php
-            $totalOverdue = $groups['overdue']->count();
-            $total30 = $groups[30]->count();
-            $total60 = $groups[60]->count();
-            $total90 = $groups[90]->count();
-        @endphp
-        <div class="erp-card p-5 text-center">
-            <div class="text-2xl font-black text-slate-700">{{ $totalOpen }}</div>
-            <div class="mt-1 text-xs text-slate-500">إجمالي مفتوحة</div>
-        </div>
-        <div class="erp-card border-2 border-rose-200 bg-rose-50/50 p-5 text-center">
-            <div class="text-2xl font-black text-rose-700">{{ $totalOverdue }}</div>
-            <div class="mt-1 text-xs font-semibold text-rose-600">متأخر</div>
-        </div>
-        <div class="erp-card border-2 border-amber-100 p-5 text-center">
-            <div class="text-2xl font-black text-amber-600">{{ $total30 }}</div>
-            <div class="mt-1 text-xs text-slate-500">خلال 30 يوم</div>
-        </div>
-        <div class="erp-card border-2 border-sky-100 p-5 text-center">
-            <div class="text-2xl font-black text-sky-600">{{ $total60 }}</div>
-            <div class="mt-1 text-xs text-slate-500">خلال 60 يوم</div>
-        </div>
-        <div class="erp-card border-2 border-slate-200 p-5 text-center">
-            <div class="text-2xl font-black text-slate-500">{{ $total90 }}</div>
-            <div class="mt-1 text-xs text-slate-500">خلال 90 يوم</div>
-        </div>
-    </div>
-
-    {{-- ═══ المجموعات ═══ --}}
     @php
-        $groupConfig = [
-            'overdue' => [
-                'label'       => 'متأخر',
-                'sublabel'    => 'تجاوز تاريخ الاستحقاق — يحتاج معالجة',
-                'dot'         => 'bg-rose-600',
-                'headerBg'    => 'bg-rose-50 border-rose-300',
-                'headerText'  => 'text-rose-900',
-                'badge'       => 'bg-rose-700 text-white',
-                'bodyBg'      => 'bg-rose-50/40',
-            ],
-            30 => [
-                'label'       => 'خلال 30 يوم',
-                'sublabel'    => 'تحتاج متابعة قريبة',
-                'dot'         => 'bg-amber-500',
-                'headerBg'    => 'bg-amber-50 border-amber-200',
-                'headerText'  => 'text-amber-800',
-                'badge'       => 'bg-amber-500 text-white',
-                'bodyBg'      => 'bg-amber-50/40',
-            ],
-            60 => [
-                'label'       => 'خلال 60 يوم',
-                'sublabel'    => 'تستحق الانتباه',
-                'dot'         => 'bg-sky-500',
-                'headerBg'    => 'bg-sky-50 border-sky-200',
-                'headerText'  => 'text-sky-800',
-                'badge'       => 'bg-sky-500 text-white',
-                'bodyBg'      => 'bg-sky-50/40',
-            ],
-            90 => [
-                'label'       => 'خلال 90 يوم',
-                'sublabel'    => 'تخطيط مسبق',
-                'dot'         => 'bg-slate-400',
-                'headerBg'    => 'bg-slate-50 border-slate-200',
-                'headerText'  => 'text-slate-700',
-                'badge'       => 'bg-slate-500 text-white',
-                'bodyBg'      => 'bg-slate-50/40',
-            ],
+        $periodTabs = [
+            'all'     => ['label' => 'الكل',        'active' => 'bg-slate-700 text-white',  'idle' => 'bg-white text-slate-600 hover:bg-slate-50'],
+            'overdue' => ['label' => 'متأخر',       'active' => 'bg-rose-700 text-white',   'idle' => 'bg-white text-rose-700 hover:bg-rose-50'],
+            '30'      => ['label' => 'خلال 30 يوم', 'active' => 'bg-amber-500 text-white',  'idle' => 'bg-white text-amber-700 hover:bg-amber-50'],
+            '60'      => ['label' => 'خلال 60 يوم', 'active' => 'bg-sky-500 text-white',    'idle' => 'bg-white text-sky-700 hover:bg-sky-50'],
+            '90'      => ['label' => 'خلال 90 يوم', 'active' => 'bg-slate-500 text-white',  'idle' => 'bg-white text-slate-600 hover:bg-slate-50'],
+            'snoozed' => ['label' => 'مؤجَّل',       'active' => 'bg-violet-600 text-white', 'idle' => 'bg-white text-violet-700 hover:bg-violet-50'],
         ];
 
         $typeLabels = [
@@ -129,113 +68,143 @@
             'warning' => 'text-amber-700',
             'info'    => 'text-sky-700',
         ];
+
+        $hasFilters = $type || $severity || $property || $search || $period !== 'all';
     @endphp
 
-    <div class="space-y-4">
-        @foreach($groupConfig as $days => $cfg)
-            @php $items = $groups[$days]; @endphp
-
-            <div
-                x-data="{ open: {{ $days === 'overdue' ? 'true' : 'false' }} }"
-                class="overflow-hidden rounded-3xl border {{ $cfg['headerBg'] }}"
-            >
-                {{-- رأس المجموعة --}}
-                <button
-                    @click="open = !open"
-                    class="flex w-full items-center justify-between px-6 py-4 transition hover:brightness-95 {{ $cfg['headerBg'] }}"
-                >
-                    <div class="flex items-center gap-3">
-                        <span class="h-3 w-3 rounded-full {{ $cfg['dot'] }}"></span>
-                        <div class="text-right">
-                            <div class="text-base font-bold {{ $cfg['headerText'] }}">{{ $cfg['label'] }}</div>
-                            <div class="text-xs text-slate-500">{{ $cfg['sublabel'] }}</div>
-                        </div>
-                    </div>
-                    <div class="flex items-center gap-3">
-                        @if($items->count() > 0)
-                            <span class="rounded-full {{ $cfg['badge'] }} px-3 py-1 text-sm font-black">
-                                {{ $items->count() }}
-                            </span>
-                        @else
-                            <span class="text-sm font-semibold text-slate-400">لا شيء ✓</span>
-                        @endif
-                        <svg class="h-4 w-4 text-slate-400 transition-transform duration-200"
-                             :class="open ? 'rotate-180' : ''"
-                             fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
-                        </svg>
-                    </div>
-                </button>
-
-                {{-- قائمة التنبيهات --}}
-                <div x-show="open" x-transition class="{{ $cfg['bodyBg'] }}">
-                    @if($items->isEmpty())
-                        <div class="px-6 py-8 text-center">
-                            <div class="mb-2 text-3xl">✅</div>
-                            <p class="text-sm font-semibold text-slate-500">لا توجد تنبيهات في هذه الفترة</p>
-                        </div>
-                    @else
-                        <div class="divide-y divide-white/60 px-4 py-3 space-y-2">
-                            @foreach($items as $notification)
-                                <div class="rounded-2xl bg-white px-4 py-4 shadow-sm {{ $severityBorder[$notification->severity] ?? '' }}">
-                                    <div class="flex items-start gap-3">
-
-                                        {{-- أيقونة النوع --}}
-                                        <div class="mt-0.5 shrink-0 text-xl">
-                                            {{ $typeIcons[$notification->type] ?? '🔔' }}
-                                        </div>
-
-                                        {{-- المحتوى --}}
-                                        <div class="flex-1 min-w-0">
-                                            <div class="flex flex-wrap items-center gap-2">
-                                                <span class="text-sm font-bold text-slate-900">{{ $notification->title }}</span>
-                                                <span class="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-500">
-                                                    {{ $typeLabels[$notification->type] ?? $notification->type }}
-                                                </span>
-                                                @if($notification->severity === 'danger')
-                                                    <span class="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-bold text-rose-700">عاجل</span>
-                                                @elseif($notification->severity === 'warning')
-                                                    <span class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700">تحذير</span>
-                                                @endif
-                                            </div>
-
-                                            <p class="mt-1 text-sm {{ $severityText[$notification->severity] ?? 'text-slate-600' }}">
-                                                {{ $notification->message }}
-                                            </p>
-
-                                            <div class="mt-2 flex items-center gap-3 text-xs text-slate-400">
-                                                <span>📅 {{ $notification->trigger_date?->format('Y/m/d') }}</span>
-                                                @if($notification->trigger_date?->isPast())
-                                                    <span class="font-bold text-rose-500">
-                                                        متأخر {{ $notification->trigger_date->diffForHumans() }}
-                                                    </span>
-                                                @else
-                                                    <span>بعد {{ $notification->trigger_date->diffForHumans() }}</span>
-                                                @endif
-                                            </div>
-                                        </div>
-
-                                    </div>
-                                </div>
-                            @endforeach
-                        </div>
-                    @endif
-                </div>
-            </div>
+    {{-- ═══ تبويبات الفترة (تعمل كفلتر وكإحصاء) ═══ --}}
+    <div class="mb-4 flex flex-wrap gap-2">
+        @foreach($periodTabs as $key => $tab)
+            <button wire:click="setPeriod('{{ $key }}')"
+                    class="flex items-center gap-2 rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-bold shadow-sm transition
+                           {{ $period === $key ? $tab['active'] : $tab['idle'] }}">
+                <span>{{ $tab['label'] }}</span>
+                <span class="rounded-full px-2 py-0.5 text-xs font-black
+                             {{ $period === $key ? 'bg-white/25' : 'bg-slate-100 text-slate-600' }}">
+                    {{ $counts[$key] }}
+                </span>
+            </button>
         @endforeach
     </div>
 
-    {{-- تنبيهات خارج نطاق 90 يوم --}}
-    @php
-        $beyond = $totalOpen - $totalOverdue - $total30 - $total60 - $total90;
-    @endphp
-    @if($beyond > 0)
-        <p class="mt-4 text-center text-xs text-slate-400">
-            + {{ $beyond }} تنبيه خارج نطاق الـ 90 يوم القادمة
-        </p>
+    {{-- ═══ شريط الفلاتر ═══ --}}
+    <div class="mb-6 grid gap-3 md:grid-cols-4">
+        <input type="search" wire:model.live.debounce.400ms="search"
+               placeholder="🔍 بحث في التنبيهات..."
+               class="rounded-2xl border-slate-200 bg-white px-4 py-3 text-sm md:col-span-2">
+
+        <select wire:model.live="type" class="rounded-2xl border-slate-200 bg-white px-4 py-3 text-sm">
+            <option value="">كل الأنواع</option>
+            @foreach($typeLabels as $value => $label)
+                <option value="{{ $value }}">{{ $label }}</option>
+            @endforeach
+        </select>
+
+        <select wire:model.live="severity" class="rounded-2xl border-slate-200 bg-white px-4 py-3 text-sm">
+            <option value="">كل الدرجات</option>
+            <option value="danger">عاجل</option>
+            <option value="warning">تحذير</option>
+            <option value="info">معلومة</option>
+        </select>
+
+        <select wire:model.live="property" class="rounded-2xl border-slate-200 bg-white px-4 py-3 text-sm md:col-span-3">
+            <option value="">كل العقارات</option>
+            @foreach($properties as $p)
+                <option value="{{ $p->id }}">{{ $p->name }}</option>
+            @endforeach
+        </select>
+
+        @if($hasFilters)
+            <button wire:click="resetFilters" class="erp-btn-soft">إعادة تعيين الفلاتر</button>
+        @endif
+    </div>
+
+    {{-- ═══ القائمة ═══ --}}
+    <div class="space-y-3">
+        @forelse($notifications as $notification)
+            <div class="rounded-2xl bg-white px-5 py-4 shadow-sm ring-1 ring-slate-100 {{ $severityBorder[$notification->severity] ?? '' }}">
+                <div class="flex items-start gap-4">
+                    <div class="mt-0.5 shrink-0 text-xl">
+                        {{ $typeIcons[$notification->type] ?? '🔔' }}
+                    </div>
+
+                    <div class="min-w-0 flex-1">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="text-sm font-bold text-slate-900">{{ $notification->title }}</span>
+                            <span class="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-500">
+                                {{ $typeLabels[$notification->type] ?? $notification->type }}
+                            </span>
+                            @if($notification->severity === 'danger')
+                                <span class="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-bold text-rose-700">عاجل</span>
+                            @elseif($notification->severity === 'warning')
+                                <span class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700">تحذير</span>
+                            @endif
+                            @if($notification->isSnoozed())
+                                <span class="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-bold text-violet-700">
+                                    مؤجَّل حتى {{ $notification->snoozed_until->format('Y/m/d') }}
+                                </span>
+                            @endif
+                        </div>
+
+                        <p class="mt-1 text-sm {{ $severityText[$notification->severity] ?? 'text-slate-600' }}">
+                            {{ $notification->message }}
+                        </p>
+
+                        <div class="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-400">
+                            <span>📅 {{ $notification->trigger_date?->format('Y/m/d') ?? '—' }}</span>
+                            @if($notification->trigger_date)
+                                @if($notification->trigger_date->isPast())
+                                    <span class="font-bold text-rose-500">متأخر {{ $notification->trigger_date->diffForHumans(null, true) }}</span>
+                                @else
+                                    <span>بعد {{ $notification->trigger_date->diffForHumans(null, true) }}</span>
+                                @endif
+                            @endif
+                        </div>
+                    </div>
+
+                    <div class="flex shrink-0 flex-col items-end gap-2">
+                        @if($url = $notification->sourceUrl())
+                            <a href="{{ $url }}"
+                               class="rounded-2xl bg-indigo-50 px-4 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-100 transition">
+                                عرض التفاصيل
+                            </a>
+                        @endif
+
+                        @if($notification->isSnoozed())
+                            <button wire:click="unsnooze({{ $notification->id }})"
+                                    class="rounded-2xl bg-violet-50 px-4 py-2 text-xs font-bold text-violet-700 hover:bg-violet-100 transition">
+                                إلغاء التأجيل
+                            </button>
+                        @else
+                            <button wire:click="snooze({{ $notification->id }})"
+                                    class="rounded-2xl bg-slate-50 px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 transition">
+                                تأجيل {{ \App\Livewire\Notifications\NotificationCenter::SNOOZE_DAYS }} أيام
+                            </button>
+                        @endif
+                    </div>
+                </div>
+            </div>
+        @empty
+            <div class="rounded-3xl bg-white px-6 py-16 text-center shadow-sm ring-1 ring-slate-100">
+                <div class="mb-3 text-4xl">✅</div>
+                <p class="text-sm font-semibold text-slate-500">
+                    {{ $hasFilters ? 'لا توجد تنبيهات مطابقة للفلاتر' : 'لا توجد تنبيهات مفتوحة' }}
+                </p>
+                @if($hasFilters)
+                    <button wire:click="resetFilters" class="erp-btn-soft mt-4">إعادة تعيين الفلاتر</button>
+                @endif
+            </div>
+        @endforelse
+    </div>
+
+    @if($notifications->hasPages())
+        <div class="mt-6">
+            {{ $notifications->links() }}
+        </div>
     @endif
 
-    <p class="mt-4 text-center text-xs text-slate-400">
-        التنبيهات تختفي تلقائياً عند حل السبب (تسديد الدفعة / إنشاء عقد / تأجير الوحدة)
+    <p class="mt-6 text-center text-xs text-slate-400">
+        التنبيهات تختفي تلقائياً عند حل السبب (تسديد الدفعة / إنشاء عقد / تأجير الوحدة) —
+        والمزامنة تعمل كل ساعة
     </p>
 </div>

@@ -303,7 +303,7 @@ class NotificationSyncService
                     'message'      => 'عقد إيجار عقار '.($lease->property?->name ?? '—').' من المالك '.($lease->owner_name).' ينتهي خلال '.$daysLeft.' يوم ('.$lease->end_date->format('Y/m/d').')',
                     'trigger_date' => $lease->end_date,
                     'status'       => 'open',
-                    'payload'      => ['days_left' => $daysLeft, 'owner_name' => $lease->owner_name],
+                    'payload'      => ['days_left' => $daysLeft, 'owner_name' => $lease->owner_name, 'property_id' => $lease->property_id],
                 ]
             );
         }

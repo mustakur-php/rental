@@ -7,8 +7,6 @@ use Livewire\Component;
 use Livewire\WithPagination;
 use App\Domains\Property\Models\Property;
 use App\Domains\Property\Models\PropertyLeaseSchedule;
-use App\Domains\Notification\Services\NotificationSyncService;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -40,11 +38,8 @@ class LeaseSchedulesIndex extends Component
     {
         $this->paymentForm['paid_at'] = now()->toDateString();
 
-        // تحديث حالات التأخير عند كل فتح للصفحة (مرة كل 5 دقائق كحد أقصى)
-        Cache::remember('overdue_statuses_marked', now()->addMinutes(5), function () {
-            app(NotificationSyncService::class)->markOverdueStatuses();
-            return now()->toDateTimeString();
-        });
+        // لا تُحدَّث حالات التأخير هنا: عرض صفحة يجب ألا يُعدّل بيانات مالية.
+        // notifications:sync يتكفّل بذلك كل ساعة، و<x-sync-stale-warning> يحذّر إن توقف.
     }
 
     public function updatingSearch(): void   { $this->resetPage(); }

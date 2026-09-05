@@ -9,12 +9,39 @@ use App\Domains\Unit\Models\Unit;
 use App\Domains\Property\Models\PropertyLease;
 use App\Domains\Property\Models\PropertyLeaseSchedule;
 use App\Enums\PaymentScheduleStatus;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 
 class NotificationSyncService
 {
     /** مفتاح الكاش الذي يحمل وقت آخر مزامنة ناجحة (يقرأه مركز التنبيهات للعرض) */
     public const LAST_SYNC_KEY = 'notifications_last_sync';
+
+    /**
+     * بعد كم ساعة تُعتبر البيانات قديمة. الجدولة كل ساعة، فثلاث ساعات
+     * تعني أن تشغيلين متتاليين فُوِّتا — إشارة حقيقية لا إنذار كاذب.
+     */
+    public const STALE_AFTER_HOURS = 3;
+
+    public static function lastSyncedAt(): ?Carbon
+    {
+        $value = Cache::get(self::LAST_SYNC_KEY);
+
+        return $value ? Carbon::parse($value) : null;
+    }
+
+    /**
+     * هل توقفت المزامنة؟
+     *
+     * يُحسب أثناء عرض الصفحة — أي في عملية الويب لا في الـ cron. وهذا مقصود:
+     * أي فحص يعمل عبر الجدولة نفسها سيتوقف بصمت مع توقفها، فلا يكتشف عطلها أبداً.
+     */
+    public static function isStale(): bool
+    {
+        $last = self::lastSyncedAt();
+
+        return $last === null || $last->lt(now()->subHours(self::STALE_AFTER_HOURS));
+    }
 
     public function sync(): void
     {

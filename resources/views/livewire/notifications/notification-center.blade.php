@@ -20,6 +20,18 @@
         </x-slot:actions>
     </x-page-header>
 
+    <x-sync-stale-warning>
+        <x-slot:action>
+            <button wire:click="syncNow"
+                    wire:loading.attr="disabled"
+                    wire:loading.class="opacity-60 cursor-not-allowed"
+                    class="shrink-0 rounded-2xl bg-rose-700 px-4 py-2 text-sm font-bold text-white hover:bg-rose-800 transition">
+                <span wire:loading.remove wire:target="syncNow">🔄 تحديث الآن</span>
+                <span wire:loading wire:target="syncNow">جارٍ التحديث...</span>
+            </button>
+        </x-slot:action>
+    </x-sync-stale-warning>
+
     {{-- ═══ إحصاء سريع ═══ --}}
     <div class="mb-6 grid gap-4 md:grid-cols-4">
         @php

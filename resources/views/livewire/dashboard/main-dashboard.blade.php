@@ -1,6 +1,8 @@
 <div class="erp-container">
     <x-page-header title="لوحة التحكم" subtitle="نظرة عامة على أداء العقارات والإيجارات" />
 
+    <x-sync-stale-warning />
+
     {{-- KPI Cards --}}
     <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <x-kpi-card label="العقارات"       :value="$kpis['properties']"        icon="🏢" color="slate" />

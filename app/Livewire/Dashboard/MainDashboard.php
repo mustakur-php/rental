@@ -8,7 +8,6 @@ use App\Domains\Unit\Models\Unit;
 use App\Domains\Contract\Models\Contract;
 use App\Domains\Payment\Models\PaymentSchedule;
 use App\Domains\Maintenance\Models\MaintenanceRequest;
-use App\Domains\Notification\Services\NotificationSyncService;
 use App\Domains\Notification\Models\Notification;
 use App\Domains\Property\Models\PropertyLeaseSchedule;
 
@@ -21,8 +20,8 @@ class MainDashboard extends Component
 
     public function mount(): void
     {
-        app(NotificationSyncService::class)->markOverdueStatuses();
-
+        // لا تُحدَّث حالات التأخير هنا: عرض صفحة يجب ألا يُعدّل بيانات مالية.
+        // notifications:sync يتكفّل بذلك كل ساعة، و<x-sync-stale-warning> يحذّر إن توقف.
         $this->kpis = [
             'properties'        => Property::notArchived()->count(),
             'units'             => Unit::notArchived()->whereHas('property', fn ($q) => $q->notArchived())->count(),

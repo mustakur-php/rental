@@ -8,8 +8,6 @@ use Livewire\WithPagination;
 use App\Domains\Payment\Actions\RegisterPaymentAction;
 use App\Domains\Payment\Models\PaymentSchedule;
 use App\Domains\Property\Models\Property;
-use App\Domains\Notification\Services\NotificationSyncService;
-use Illuminate\Support\Facades\Cache;
 
 class TenantSchedulesIndex extends Component
 {
@@ -39,10 +37,8 @@ class TenantSchedulesIndex extends Component
     {
         $this->paymentForm['paid_at'] = now()->toDateString();
 
-        Cache::remember('overdue_statuses_marked', now()->addMinutes(5), function () {
-            app(NotificationSyncService::class)->markOverdueStatuses();
-            return now()->toDateTimeString();
-        });
+        // لا تُحدَّث حالات التأخير هنا: عرض صفحة يجب ألا يُعدّل بيانات مالية.
+        // notifications:sync يتكفّل بذلك كل ساعة، و<x-sync-stale-warning> يحذّر إن توقف.
     }
 
     public function updatingSearch(): void   { $this->resetPage(); }

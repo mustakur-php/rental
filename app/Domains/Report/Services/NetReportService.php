@@ -56,19 +56,28 @@ class NetReportService
         $allIds = $incomeByProp->keys()->merge($outgoingByProp->keys())->unique();
 
         return $allIds->map(function ($id) use ($incomeByProp, $outgoingByProp) {
-            $inc = $incomeByProp->get($id,  ['property_name' => '—', 'paid_total' => 0]);
+            $inc = $incomeByProp->get($id,  ['property_name' => '—', 'paid_total' => 0, 'required' => 0, 'collected' => 0]);
             $out = $outgoingByProp->get($id, ['property_name' => '—', 'owner_name' => '—', 'paid' => 0, 'required' => 0, 'remaining' => 0]);
 
-            $incomePaid       = (float) ($inc['paid_total'] ?? 0);
+            // الطرح على أساس الاستحقاق من الطرفين.
+            //
+            // كان الصافي يطرح نقداً وارداً (payments.payment_date) من مستحقات
+            // ملاك (due_date) — كميتان بمقياسين مختلفين، فالناتج بلا معنى.
+            // ولا يمكن توحيدهما نقدياً: دفعات الملاك بلا سجل بتواريخ.
+            $incomeCollected  = (float) ($inc['collected'] ?? 0);
+            $incomeRequired   = (float) ($inc['required'] ?? 0);
+            $incomeCash       = (float) ($inc['paid_total'] ?? 0);
             $outgoingPaid     = (float) ($out['paid'] ?? 0);
             $outgoingRequired = (float) ($out['required'] ?? 0);
             $outgoingRemaining= (float) ($out['remaining'] ?? 0);
-            $net              = round($incomePaid - $outgoingPaid, 2);
+            $net              = round($incomeCollected - $outgoingPaid, 2);
 
             return [
                 'property_id'        => $id,
                 'property_name'      => $inc['property_name'] !== '—' ? $inc['property_name'] : ($out['property_name'] ?? '—'),
-                'income_paid'        => $incomePaid,
+                'income_required'    => $incomeRequired,
+                'income_paid'        => $incomeCollected,
+                'income_cash'        => $incomeCash,
                 'outgoing_paid'      => $outgoingPaid,
                 'outgoing_required'  => $outgoingRequired,
                 'outgoing_remaining' => $outgoingRemaining,

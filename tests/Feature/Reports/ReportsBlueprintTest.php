@@ -120,13 +120,77 @@ class ReportsBlueprintTest extends TestCase
 
         $aging = app(ArrearsReportService::class)->aging(new ReportFilters());
 
-        $this->assertArrayHasKey('0_30', $aging);
-        $this->assertArrayHasKey('31_60', $aging);
-        $this->assertArrayHasKey('61_90', $aging);
-        $this->assertArrayHasKey('90_plus', $aging);
+        // التقادم مفصول: مدين (مستأجرون) عن دائن (ملاك)
+        $this->assertArrayHasKey('tenant', $aging);
+        $this->assertArrayHasKey('owner', $aging);
 
-        // القسط المتأخر 45 يوم يجب أن يكون في الـ bucket 31-60
-        $this->assertGreaterThan(0, $aging['31_60']);
+        foreach (['0_30', '31_60', '61_90', '90_plus', 'total'] as $bucket) {
+            $this->assertArrayHasKey($bucket, $aging['tenant']);
+            $this->assertArrayHasKey($bucket, $aging['owner']);
+        }
+
+        // القسط المتأخر 45 يوم يجب أن يكون في الـ bucket 31-60 على جانب المستأجرين
+        $this->assertGreaterThan(0, $aging['tenant']['31_60']);
+    }
+
+    public function test_owner_dues_never_leak_into_tenant_arrears(): void
+    {
+        [$contract] = $this->createContractScenario();
+
+        $contract->paymentSchedules()->first()->update([
+            'due_date' => now()->subDays(45)->toDateString(),
+            'status'   => 'overdue',
+        ]);
+
+        // عقد مالك متأخر على نفس العقار
+        $property = $contract->unit->property;
+        $lease = \App\Domains\Property\Models\PropertyLease::create([
+            'property_id'        => $property->id,
+            'owner_name'         => 'مالك',
+            'start_date'         => now()->subYear()->toDateString(),
+            'end_date'           => now()->addYear()->toDateString(),
+            'total_amount'       => 90000,
+            'vat_rate'           => 0,
+            'vat_amount'         => 0,
+            'total_with_vat'     => 90000,
+            'payment_cycle'      => 'annually',
+            'installments_count' => 1,
+            'status'             => 'active',
+        ]);
+        \App\Domains\Property\Models\PropertyLeaseSchedule::create([
+            'property_lease_id' => $lease->id,
+            'installment_no'    => 1,
+            'due_date'          => now()->subDays(45)->toDateString(),
+            'amount'            => 90000,
+            'paid_amount'       => 0,
+            'remaining_amount'  => 90000,
+            'status'            => 'overdue',
+        ]);
+
+        $aging = app(ArrearsReportService::class)->aging(new ReportFilters());
+
+        // 90,000 من الملاك يجب ألا يظهر ضمن ما هو مستحق لنا
+        $this->assertSame(90000.0, $aging['owner']['31_60']);
+        $this->assertLessThan(90000.0, $aging['tenant']['31_60']);
+        $this->assertNotSame($aging['tenant']['total'], $aging['owner']['total']);
+    }
+
+    public function test_net_per_property_subtracts_a_single_basis(): void
+    {
+        [$contract] = $this->createContractScenario();
+
+        $schedule = $contract->paymentSchedules()->first();
+        $schedule->update(['paid_amount' => 1000, 'remaining_amount' => $schedule->total_amount - 1000]);
+
+        $rows = app(\App\Domains\Report\Services\NetReportService::class)->byProperty(new ReportFilters());
+        $row  = collect($rows)->firstWhere('property_id', $contract->unit->property_id);
+
+        // الوارد في صف الصافي يُقاس بأساس الاستحقاق (paid_amount على الأقساط)
+        $this->assertSame(1000.0, $row['income_paid']);
+        $this->assertSame(round($row['income_paid'] - $row['outgoing_paid'], 2), $row['net']);
+
+        // والرقم النقدي يبقى متاحاً منفصلاً بلا أن يدخل في الطرح
+        $this->assertArrayHasKey('income_cash', $row);
     }
 
     private function createContractScenario(): array

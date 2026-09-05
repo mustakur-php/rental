@@ -7,6 +7,7 @@ use App\Domains\Payment\Models\PaymentSchedule;
 use App\Enums\PaymentScheduleStatus;
 use App\Enums\PaymentStatus;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class RegisterPaymentAction
@@ -69,8 +70,13 @@ class RegisterPaymentAction
         return $payment;
     }
 
+    /**
+     * كان اللاحق `random_int(100, 999)` مع طابع زمني بالثانية، أي احتمال تصادم
+     * ~1/900 لدفعتين في الثانية نفسها. والعمود فريد في قاعدة البيانات، فالتصادم
+     * كان يرفض الدفعة بخطأ أمام المستخدم — وقد وقع فعلاً في حزمة الاختبارات.
+     */
     private function generateCode(): string
     {
-        return 'PAY-' . now()->format('Ymd-His') . '-' . random_int(100, 999);
+        return 'PAY-'.now()->format('Ymd-His').'-'.Str::upper(Str::random(6));
     }
 }

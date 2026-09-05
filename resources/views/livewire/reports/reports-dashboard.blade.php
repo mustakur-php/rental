@@ -91,9 +91,18 @@
                         <tr>
                             <th class="px-5 py-3">العقار</th>
                             <th class="px-5 py-3">نوع الملكية</th>
-                            <th class="px-5 py-3">الوارد المحصّل</th>
-                            <th class="px-5 py-3">الصادر المدفوع</th>
-                            <th class="px-5 py-3">الصافي</th>
+                            <th class="px-5 py-3">
+                                الوارد المحصّل
+                                <span class="block font-normal text-slate-400">من مستحقات الفترة</span>
+                            </th>
+                            <th class="px-5 py-3">
+                                الصادر المدفوع
+                                <span class="block font-normal text-slate-400">من مستحقات الفترة</span>
+                            </th>
+                            <th class="px-5 py-3">
+                                الفرق
+                                <span class="block font-normal text-slate-400">قبل المصاريف والضريبة</span>
+                            </th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-50">
@@ -183,13 +192,46 @@
 
     {{-- ───── تبويب المتأخرات ───── --}}
     @elseif($activeTab === 'arrears')
-        {{-- ملخص التقادم --}}
-        <div class="grid gap-4 md:grid-cols-4">
-            @foreach(['0_30' => '0-30 يوم', '31_60' => '31-60 يوم', '61_90' => '61-90 يوم', '90_plus' => '+90 يوم'] as $key => $label)
-                <div wire:key="arrears-{{ $key }}" class="erp-card p-5 text-center">
-                    <div class="text-xs text-slate-500">{{ $label }}</div>
-                    <div class="text-2xl font-black {{ $arrearsAging[$key] > 0 ? 'text-rose-600' : 'text-slate-400' }} mt-1">{{ number_format($arrearsAging[$key], 0) }}</div>
-                    <div class="text-xs text-slate-400">ر.س</div>
+        {{-- ملخص التقادم — مفصول بين المدين والدائن.
+             لا تُجمع الذمم المدينة (أصل) مع الدائنة (التزام) في رقم واحد. --}}
+        @php
+            $agingBuckets = ['0_30' => '0-30 يوم', '31_60' => '31-60 يوم', '61_90' => '61-90 يوم', '90_plus' => '+90 يوم'];
+            $agingSides = [
+                'tenant' => [
+                    'title' => 'متأخرات المستأجرين', 'note' => 'مستحق لنا — ذمم مدينة',
+                    'ring' => 'ring-rose-200', 'head' => 'text-rose-800', 'value' => 'text-rose-600',
+                ],
+                'owner' => [
+                    'title' => 'مستحقات الملاك', 'note' => 'مستحق علينا — ذمم دائنة',
+                    'ring' => 'ring-amber-200', 'head' => 'text-amber-800', 'value' => 'text-amber-600',
+                ],
+            ];
+        @endphp
+
+        <div class="space-y-4">
+            @foreach($agingSides as $side => $cfg)
+                <div wire:key="aging-{{ $side }}" class="rounded-3xl bg-white p-5 shadow-sm ring-1 {{ $cfg['ring'] }}">
+                    <div class="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+                        <div>
+                            <h3 class="font-bold {{ $cfg['head'] }}">{{ $cfg['title'] }}</h3>
+                            <p class="mt-0.5 text-xs text-slate-500">{{ $cfg['note'] }}</p>
+                        </div>
+                        <span class="text-lg font-black {{ $cfg['value'] }}">
+                            {{ number_format($arrearsAging[$side]['total'], 2) }} ر.س
+                        </span>
+                    </div>
+
+                    <div class="grid gap-3 md:grid-cols-4">
+                        @foreach($agingBuckets as $key => $label)
+                            <div class="rounded-2xl bg-slate-50 p-4 text-center">
+                                <div class="text-xs text-slate-500">{{ $label }}</div>
+                                <div class="mt-1 text-xl font-black {{ $arrearsAging[$side][$key] > 0 ? $cfg['value'] : 'text-slate-400' }}">
+                                    {{ number_format($arrearsAging[$side][$key], 0) }}
+                                </div>
+                                <div class="text-xs text-slate-400">ر.س</div>
+                            </div>
+                        @endforeach
+                    </div>
                 </div>
             @endforeach
         </div>

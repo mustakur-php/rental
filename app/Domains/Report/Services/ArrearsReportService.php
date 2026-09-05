@@ -68,14 +68,29 @@ class ArrearsReportService
         })->filter(fn ($row) => $row['remaining'] > 0)->values()->toArray();
     }
 
-    // ─── تقادم المتأخرات (مستأجرون + ملاك معاً) ─────────────────────
+    /**
+     * تقادم الذمم — مفصولاً بين المدين والدائن.
+     *
+     * كانت الدالة تدمج الطرفين في سلال واحدة، فيظهر رقم واحد يجمع ما لنا
+     * (ذمم مدينة، أصل) مع ما علينا (ذمم دائنة، التزام). المقاصة بينهما ممنوعة
+     * محاسبياً، والرقم الناتج كان يوحي بعكس الحقيقة: أكثر من 97% منه دَين علينا.
+     *
+     * @return array{tenant: array<string,float>, owner: array<string,float>}
+     */
     public function aging(ReportFilters $filters): array
+    {
+        return [
+            'tenant' => $this->bucketByAge($this->overdue($filters)),       // مستحق لنا
+            'owner'  => $this->bucketByAge($this->ownerOverdue($filters)),  // مستحق علينا
+        ];
+    }
+
+    /** @param array<int,array{days_overdue:int,remaining:float}> $rows */
+    private function bucketByAge(array $rows): array
     {
         $buckets = ['0_30' => 0, '31_60' => 0, '61_90' => 0, '90_plus' => 0];
 
-        $allRows = array_merge($this->overdue($filters), $this->ownerOverdue($filters));
-
-        foreach ($allRows as $row) {
+        foreach ($rows as $row) {
             $days   = $row['days_overdue'];
             $amount = $row['remaining'];
 
@@ -84,6 +99,8 @@ class ArrearsReportService
             elseif ($days <= 90)  $buckets['61_90']   += $amount;
             else                  $buckets['90_plus'] += $amount;
         }
+
+        $buckets['total'] = array_sum($buckets);
 
         return array_map(fn ($v) => round($v, 2), $buckets);
     }

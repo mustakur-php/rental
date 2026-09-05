@@ -9,11 +9,16 @@ use App\Domains\Unit\Models\Unit;
 use App\Domains\Property\Models\PropertyLease;
 use App\Domains\Property\Models\PropertyLeaseSchedule;
 use App\Enums\PaymentScheduleStatus;
+use Illuminate\Support\Facades\Cache;
 
 class NotificationSyncService
 {
+    /** مفتاح الكاش الذي يحمل وقت آخر مزامنة ناجحة (يقرأه مركز التنبيهات للعرض) */
+    public const LAST_SYNC_KEY = 'notifications_last_sync';
+
     public function sync(): void
     {
+        $this->purgeOrphans();
         $this->markOverdueStatuses();
         $this->syncOverduePayments();
         $this->syncUpcomingTenantPayments();
@@ -21,6 +26,27 @@ class NotificationSyncService
         $this->syncVacantUnits();
         $this->syncPropertyLeasePayments();
         $this->syncExpiringPropertyLeases();
+
+        Cache::forever(self::LAST_SYNC_KEY, now()->toDateTimeString());
+    }
+
+    // ─── حذف التنبيهات التي اختفى مصدرها ───────────────────────────
+    // التنظيف داخل كل دالة أدناه يعتمد على whereHasMorph، وهو لا يطابق أبداً
+    // عندما يُحذف صف المصدر نفسه — وهذا يحدث كلما أُعيد توليد جدولة عقد
+    // (syncLeaseSchedules يحذف الجدولات القديمة وينشئ غيرها)، فتبقى تنبيهاتها
+    // معلّقة للأبد. whereDoesntHaveMorph هو النقيض الدقيق الذي يلتقطها.
+    //
+    // ملاحظة أمان: كل نوع يُطابَق بشرط `morph_type = X AND NOT EXISTS(...)`،
+    // فالتنبيهات ذات نوع خارج هذه القائمة لا تُحذف إطلاقاً.
+    protected function purgeOrphans(): void
+    {
+        Notification::whereDoesntHaveMorph('notifiableSource', [
+            PaymentSchedule::class,
+            PropertyLeaseSchedule::class,
+            Contract::class,
+            PropertyLease::class,
+            Unit::class,
+        ])->delete();
     }
 
     // ─── تحديث حالة الاستحقاقات المتأخرة ──────────────────────────

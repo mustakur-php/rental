@@ -9,12 +9,27 @@ use Illuminate\Support\Facades\Cache;
 
 class NotificationCenter extends Component
 {
-    public function mount(): void
+    /**
+     * المزامنة عملية كتابة ثقيلة: تُحدّث حالات الاستحقاقات في قاعدة البيانات
+     * وتُنشئ مئات التنبيهات. لذلك لا تعمل تلقائياً أثناء render — تعمل عبر
+     * جدولة الـ cron كل ساعة، أو بضغطة صريحة من المستخدم هنا.
+     */
+    public function syncNow(): void
     {
-        Cache::remember('notifications_last_sync', now()->addMinutes(15), function () {
+        $lock = Cache::lock('notifications_sync_lock', 300);
+
+        if (! $lock->get()) {
+            $this->dispatch('notify', message: 'المزامنة قيد التنفيذ بالفعل — أعد المحاولة بعد قليل');
+
+            return;
+        }
+
+        try {
             app(NotificationSyncService::class)->sync();
-            return now()->toDateTimeString();
-        });
+            $this->dispatch('notify', message: 'تم تحديث التنبيهات');
+        } finally {
+            $lock->release();
+        }
     }
 
     public function render()
@@ -22,13 +37,6 @@ class NotificationCenter extends Component
         $d30 = now()->addDays(30)->endOfDay();
         $d60 = now()->addDays(60)->endOfDay();
         $d90 = now()->addDays(90)->endOfDay();
-
-        // ترتيب الخطورة: danger أولاً ثم warning ثم info
-        $severityOrder = ['danger' => 0, 'warning' => 1, 'info' => 2];
-
-        $sortFn = fn ($a, $b) =>
-            ($severityOrder[$a->severity] ?? 9) <=> ($severityOrder[$b->severity] ?? 9)
-            ?: $a->trigger_date <=> $b->trigger_date;
 
         // Portable severity sort (works on MySQL and SQLite)
         $severityOrder = "CASE severity WHEN 'danger' THEN 0 WHEN 'warning' THEN 1 WHEN 'info' THEN 2 ELSE 9 END";
@@ -54,8 +62,9 @@ class NotificationCenter extends Component
         ];
 
         $totalOpen = Notification::open()->count();
+        $lastSync  = Cache::get(NotificationSyncService::LAST_SYNC_KEY);
 
-        return view('livewire.notifications.notification-center', compact('groups', 'totalOpen'))
+        return view('livewire.notifications.notification-center', compact('groups', 'totalOpen', 'lastSync'))
             ->layout('layouts.app', ['title' => 'مركز التنبيهات']);
     }
 }

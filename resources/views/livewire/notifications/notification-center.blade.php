@@ -1,5 +1,24 @@
 <div class="erp-container">
-    <x-page-header title="مركز التنبيهات" subtitle="تنبيهات تلقائية مرتبطة بأحداث النظام" />
+    <x-page-header title="مركز التنبيهات" subtitle="تنبيهات تلقائية مرتبطة بأحداث النظام">
+        <x-slot:actions>
+            <div class="flex items-center gap-3">
+                <span class="text-xs text-slate-400">
+                    @if($lastSync)
+                        آخر مزامنة: {{ \Carbon\Carbon::parse($lastSync)->diffForHumans() }}
+                    @else
+                        لم تتم أي مزامنة بعد
+                    @endif
+                </span>
+                <button wire:click="syncNow"
+                        wire:loading.attr="disabled"
+                        wire:loading.class="opacity-60 cursor-not-allowed"
+                        class="erp-btn-soft">
+                    <span wire:loading.remove wire:target="syncNow">🔄 تحديث الآن</span>
+                    <span wire:loading wire:target="syncNow">جارٍ التحديث...</span>
+                </button>
+            </div>
+        </x-slot:actions>
+    </x-page-header>
 
     {{-- ═══ إحصاء سريع ═══ --}}
     <div class="mb-6 grid gap-4 md:grid-cols-4">

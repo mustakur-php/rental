@@ -76,7 +76,8 @@
     <div class="mb-4 flex flex-wrap gap-2">
         @foreach($periodTabs as $key => $tab)
             <button wire:click="setPeriod('{{ $key }}')"
-                    class="flex items-center gap-2 rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-bold shadow-sm transition
+                    class="flex cursor-pointer items-center gap-2 rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-bold shadow-sm transition
+                           hover:border-slate-400 active:scale-95
                            {{ $period === $key ? $tab['active'] : $tab['idle'] }}">
                 <span>{{ $tab['label'] }}</span>
                 <span class="rounded-full px-2 py-0.5 text-xs font-black
@@ -165,19 +166,26 @@
                     <div class="flex shrink-0 flex-col items-end gap-2">
                         @if($url = $notification->sourceUrl())
                             <a href="{{ $url }}"
-                               class="rounded-2xl bg-indigo-50 px-4 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-100 transition">
+                               class="cursor-pointer rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-2 text-xs font-bold text-indigo-700 transition
+                                      hover:border-indigo-400 hover:bg-indigo-600 hover:text-white active:scale-95">
                                 عرض التفاصيل
                             </a>
                         @endif
 
                         @if($notification->isSnoozed())
                             <button wire:click="unsnooze({{ $notification->id }})"
-                                    class="rounded-2xl bg-violet-50 px-4 py-2 text-xs font-bold text-violet-700 hover:bg-violet-100 transition">
+                                    wire:loading.attr="disabled"
+                                    title="إعادة إظهار هذا التنبيه الآن"
+                                    class="cursor-pointer rounded-2xl border border-violet-300 bg-violet-50 px-4 py-2 text-xs font-bold text-violet-700 transition
+                                           hover:border-violet-500 hover:bg-violet-600 hover:text-white active:scale-95 disabled:opacity-50">
                                 إلغاء التأجيل
                             </button>
                         @else
                             <button wire:click="snooze({{ $notification->id }})"
-                                    class="rounded-2xl bg-slate-50 px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 transition">
+                                    wire:loading.attr="disabled"
+                                    title="إخفاء التنبيه {{ \App\Livewire\Notifications\NotificationCenter::SNOOZE_DAYS }} أيام — يعود بعدها إن بقي سببه قائماً"
+                                    class="cursor-pointer rounded-2xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-600 transition
+                                           hover:border-slate-500 hover:bg-slate-700 hover:text-white active:scale-95 disabled:opacity-50">
                                 تأجيل {{ \App\Livewire\Notifications\NotificationCenter::SNOOZE_DAYS }} أيام
                             </button>
                         @endif

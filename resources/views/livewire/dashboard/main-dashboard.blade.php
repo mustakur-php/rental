@@ -203,26 +203,36 @@
 
                 {{-- رأس --}}
                 <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-                    <h2 class="text-base font-bold text-slate-800">التنبيهات القادمة</h2>
+                    <h2 class="text-base font-bold text-slate-800">التنبيهات</h2>
                     <a href="{{ route('notifications.index') }}" class="text-xs font-semibold text-rose-700 hover:underline">كل التنبيهات ←</a>
                 </div>
 
                 @php
                     $alertGroups = [
-                        30 => ['label' => 'خلال 30 يوم', 'bg' => 'bg-rose-50',   'text' => 'text-rose-700',   'badge' => 'bg-rose-600',   'dot' => 'bg-rose-500'],
-                        60 => ['label' => 'خلال 60 يوم', 'bg' => 'bg-amber-50',  'text' => 'text-amber-700',  'badge' => 'bg-amber-500',  'dot' => 'bg-amber-400'],
-                        90 => ['label' => 'خلال 90 يوم', 'bg' => 'bg-slate-50',  'text' => 'text-slate-600',  'badge' => 'bg-slate-500',  'dot' => 'bg-slate-400'],
+                        'overdue' => ['label' => 'متأخر',        'bg' => 'bg-rose-50',   'text' => 'text-rose-800',   'badge' => 'bg-rose-700',   'dot' => 'bg-rose-600'],
+                        30        => ['label' => 'خلال 30 يوم', 'bg' => 'bg-amber-50',  'text' => 'text-amber-700',  'badge' => 'bg-amber-500',  'dot' => 'bg-amber-400'],
+                        60        => ['label' => 'خلال 60 يوم', 'bg' => 'bg-sky-50',    'text' => 'text-sky-700',    'badge' => 'bg-sky-500',    'dot' => 'bg-sky-400'],
+                        90        => ['label' => 'خلال 90 يوم', 'bg' => 'bg-slate-50',  'text' => 'text-slate-600',  'badge' => 'bg-slate-500',  'dot' => 'bg-slate-400'],
+                    ];
+
+                    // كل صف يفتح مركز التنبيهات على نفس الفترة، وبنوعه المحدد
+                    // حين يقابل الصفُ نوعاً واحداً بعينه.
+                    $alertRows = [
+                        'contracts'       => ['icon' => '📄', 'label' => 'عقود تنتهي',    'type' => null],
+                        'tenant_payments' => ['icon' => '💰', 'label' => 'دفعات مستأجرين', 'type' => null],
+                        'lease_payments'  => ['icon' => '🏢', 'label' => 'دفعات ملاك',    'type' => 'lease_payment_due'],
+                        'vacant_units'    => ['icon' => '🏠', 'label' => 'وحدات شاغرة',   'type' => 'unit_vacant'],
                     ];
                 @endphp
 
                 <div class="divide-y divide-slate-100">
                     @foreach($alertGroups as $days => $style)
                         @php
-                            $group   = $kpis['alerts'][$days];
-                            $total   = $group['contracts'] + $group['tenant_payments'] + $group['lease_payments'];
+                            $group = $kpis['alerts'][$days];
+                            $total = array_sum($group);
                         @endphp
 
-                        <div x-data="{ open: {{ $days === 30 ? 'true' : 'false' }} }">
+                        <div x-data="{ open: {{ $days === 'overdue' ? 'true' : 'false' }} }">
 
                             {{-- رأس المجموعة --}}
                             <button @click="open = !open"
@@ -247,38 +257,17 @@
                             {{-- تفاصيل المجموعة --}}
                             <div x-show="open" x-transition class="{{ $style['bg'] }} px-5 pb-3 pt-1 space-y-2">
 
-                                {{-- عقود تنتهي --}}
-                                <div class="flex items-center justify-between rounded-xl bg-white/70 px-3 py-2.5 text-xs">
-                                    <span class="flex items-center gap-1.5 {{ $style['text'] }} font-semibold">
-                                        <span>📄</span> عقود تنتهي
-                                    </span>
-                                    <a href="{{ route('contracts.index') }}"
-                                       class="font-black {{ $group['contracts'] > 0 ? $style['text'] : 'text-slate-400' }} hover:underline">
-                                        {{ $group['contracts'] }}
+                                @foreach($alertRows as $key => $row)
+                                    <a href="{{ route('notifications.index', array_filter(['period' => $days, 'type' => $row['type']])) }}"
+                                       class="flex items-center justify-between rounded-xl bg-white/70 px-3 py-2.5 text-xs transition hover:bg-white">
+                                        <span class="flex items-center gap-1.5 {{ $style['text'] }} font-semibold">
+                                            <span>{{ $row['icon'] }}</span> {{ $row['label'] }}
+                                        </span>
+                                        <span class="font-black {{ $group[$key] > 0 ? $style['text'] : 'text-slate-400' }}">
+                                            {{ $group[$key] }}
+                                        </span>
                                     </a>
-                                </div>
-
-                                {{-- دفعات مستأجرين --}}
-                                <div class="flex items-center justify-between rounded-xl bg-white/70 px-3 py-2.5 text-xs">
-                                    <span class="flex items-center gap-1.5 {{ $style['text'] }} font-semibold">
-                                        <span>💰</span> دفعات مستأجرين
-                                    </span>
-                                    <a href="{{ route('payments.tenants') }}"
-                                       class="font-black {{ $group['tenant_payments'] > 0 ? $style['text'] : 'text-slate-400' }} hover:underline">
-                                        {{ $group['tenant_payments'] }}
-                                    </a>
-                                </div>
-
-                                {{-- دفعات ملاك --}}
-                                <div class="flex items-center justify-between rounded-xl bg-white/70 px-3 py-2.5 text-xs">
-                                    <span class="flex items-center gap-1.5 {{ $style['text'] }} font-semibold">
-                                        <span>🏢</span> دفعات ملاك
-                                    </span>
-                                    <a href="{{ route('payments.leases') }}"
-                                       class="font-black {{ $group['lease_payments'] > 0 ? $style['text'] : 'text-slate-400' }} hover:underline">
-                                        {{ $group['lease_payments'] }}
-                                    </a>
-                                </div>
+                                @endforeach
 
                             </div>
                         </div>

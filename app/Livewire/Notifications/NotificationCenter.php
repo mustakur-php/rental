@@ -11,6 +11,7 @@ use App\Domains\Property\Models\PropertyLease;
 use App\Domains\Property\Models\PropertyLeaseSchedule;
 use App\Domains\Unit\Models\Unit;
 use Illuminate\Support\Facades\Cache;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -21,11 +22,22 @@ class NotificationCenter extends Component
     /** كم يوماً يختفي التنبيه عند التأجيل قبل أن يعود إن بقي سببه قائماً */
     public const SNOOZE_DAYS = 7;
 
-    public string $period   = 'all';   // all | overdue | 30 | 60 | 90 | snoozed
-    public string $type     = '';
+    // الفلاتر في الرابط: تجعل النتيجة قابلة للمشاركة، وتتيح للوحة التحكم
+    // الربط مباشرة إلى القائمة المفلترة بدل إنزال المستخدم على قائمة كاملة.
+    #[Url(except: 'all')]
+    public string $period = 'all';   // all | overdue | 30 | 60 | 90 | snoozed
+
+    #[Url(except: '')]
+    public string $type = '';
+
+    #[Url(except: '')]
     public string $severity = '';
+
+    #[Url(except: '')]
     public string $property = '';
-    public string $search   = '';
+
+    #[Url(except: '')]
+    public string $search = '';
 
     public function updatingPeriod(): void   { $this->resetPage(); }
     public function updatingType(): void     { $this->resetPage(); }

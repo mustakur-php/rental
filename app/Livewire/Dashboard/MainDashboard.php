@@ -76,38 +76,34 @@ class MainDashboard extends Component
         $d60   = now()->addDays(60)->endOfDay();
         $d90   = now()->addDays(90)->endOfDay();
 
-        $this->kpis['alerts'] = [
-            30 => [
-                'contracts' => Contract::notArchived()->where('status', 'active')
-                    ->whereBetween('end_date', [$today, $d30])->count(),
-                'tenant_payments' => PaymentSchedule::whereIn('status', ['pending', 'due', 'partial', 'overdue'])
-                    ->where('remaining_amount', '>', 0)
-                    ->whereBetween('due_date', [$today, $d30])->count(),
-                'lease_payments'  => PropertyLeaseSchedule::whereNotIn('status', ['paid'])
-                    ->where('remaining_amount', '>', 0)
-                    ->whereBetween('due_date', [$today, $d30])->count(),
-            ],
-            60 => [
-                'contracts' => Contract::notArchived()->where('status', 'active')
-                    ->whereBetween('end_date', [$d30->copy()->addSecond(), $d60])->count(),
-                'tenant_payments' => PaymentSchedule::whereIn('status', ['pending', 'due', 'partial'])
-                    ->where('remaining_amount', '>', 0)
-                    ->whereBetween('due_date', [$d30->copy()->addSecond(), $d60])->count(),
-                'lease_payments'  => PropertyLeaseSchedule::whereNotIn('status', ['paid'])
-                    ->where('remaining_amount', '>', 0)
-                    ->whereBetween('due_date', [$d30->copy()->addSecond(), $d60])->count(),
-            ],
-            90 => [
-                'contracts' => Contract::notArchived()->where('status', 'active')
-                    ->whereBetween('end_date', [$d60->copy()->addSecond(), $d90])->count(),
-                'tenant_payments' => PaymentSchedule::whereIn('status', ['pending', 'due', 'partial'])
-                    ->where('remaining_amount', '>', 0)
-                    ->whereBetween('due_date', [$d60->copy()->addSecond(), $d90])->count(),
-                'lease_payments'  => PropertyLeaseSchedule::whereNotIn('status', ['paid'])
-                    ->where('remaining_amount', '>', 0)
-                    ->whereBetween('due_date', [$d60->copy()->addSecond(), $d90])->count(),
-            ],
+        // تُقرأ من جدول notifications لا من جداول المصدر.
+        //
+        // كانت اللوحة تُعيد اشتقاق نفس المفهوم باستعلامات موازية، فنشأ مصدرا
+        // حقيقة: لا ترث فلتر الأرشفة، ولا تحترم التأجيل، ولم تكن تعرض
+        // المتأخرات إطلاقاً — فيرى الناظر إلى الشاشة الرئيسية أرقاماً صغيرة
+        // بينما مئات التنبيهات فات موعدها.
+        $periods = [
+            'overdue' => fn ($q) => $q->where('trigger_date', '<', $today),
+            30        => fn ($q) => $q->whereBetween('trigger_date', [$today, $d30]),
+            60        => fn ($q) => $q->whereBetween('trigger_date', [$d30->copy()->addSecond(), $d60]),
+            90        => fn ($q) => $q->whereBetween('trigger_date', [$d60->copy()->addSecond(), $d90]),
         ];
+
+        $this->kpis['alerts'] = [];
+
+        foreach ($periods as $key => $constrain) {
+            $byType = $constrain(Notification::visible())
+                ->selectRaw('type, COUNT(*) as total')
+                ->groupBy('type')
+                ->pluck('total', 'type');
+
+            $this->kpis['alerts'][$key] = [
+                'contracts'       => ($byType['contract_expiring'] ?? 0) + ($byType['property_lease_expiring'] ?? 0),
+                'tenant_payments' => ($byType['payment_due'] ?? 0) + ($byType['payment_overdue'] ?? 0),
+                'lease_payments'  => $byType['lease_payment_due'] ?? 0,
+                'vacant_units'    => $byType['unit_vacant'] ?? 0,
+            ];
+        }
 
         // ─── بيانات حالة الوحدات ─────────────────────────
         $unitsBase = Unit::notArchived()->whereHas('property', fn ($q) => $q->notArchived());

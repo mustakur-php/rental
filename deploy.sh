@@ -2,7 +2,10 @@
 #
 # نشر التحديثات على السيرفر.
 #
-#   ssh root@76.13.45.201 'bash /var/www/rental/deploy.sh'
+#   ssh root@76.13.45.201 bash /var/www/rental/deploy.sh
+#
+# بلا علامات اقتباس مفردة: cmd.exe على ويندوز لا يعتبرها أداة اقتباس بل
+# يمررها حرفاً ضمن الأمر، فيصل السيرفر أمرٌ اسمه "'bash …deploy.sh'".
 #
 # vendor/ و node_modules/ و public/build مستثناة في .gitignore، فلا يكفي
 # git pull وحده — الاعتماديات والأصول تُبنى هنا. قبل إضافة هذا الملف كانت

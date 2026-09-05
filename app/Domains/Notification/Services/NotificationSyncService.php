@@ -11,6 +11,7 @@ use App\Domains\Property\Models\PropertyLeaseSchedule;
 use App\Enums\PaymentScheduleStatus;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 class NotificationSyncService
 {
@@ -77,24 +78,60 @@ class NotificationSyncService
     }
 
     // ─── تحديث حالة الاستحقاقات المتأخرة ──────────────────────────
+    /**
+     * القاعدة المعتمدة في النظام هي PaymentSchedule::refreshPaymentStatus():
+     *   أي سداد جزئي ⇒ partial (تسبق overdue)، والتأخير لا يبدأ إلا بعد
+     *   انقضاء grace_period_days.
+     *
+     * هذه الدالة تُطبّق القاعدة نفسها جماعياً، فلا تلمس إلا ما لم يُسدَّد منه
+     * شيء وانقضت فترة سماحه. قبل ذلك كانت تتجاهل الأمرين فتكتب overdue فوق
+     * partial وفوق ما هو داخل فترة السماح، مناقِضةً الموديل.
+     */
     public function markOverdueStatuses(): void
     {
-        // دفعات المستأجرين — كل ما فات تاريخه وما زال غير مدفوع
+        // دفعات المستأجرين — بعد فترة السماح، وبلا أي سداد جزئي
         PaymentSchedule::query()
             ->whereNotIn('status', [
                 PaymentScheduleStatus::Paid->value,
                 PaymentScheduleStatus::Cancelled->value,
+                PaymentScheduleStatus::Partial->value,
             ])
             ->where('remaining_amount', '>', 0)
-            ->where('due_date', '<', now()->toDateString())
+            ->where('paid_amount', '<=', 0)
+            ->whereRaw($this->gracePeriodExpiredExpression())
             ->update(['status' => PaymentScheduleStatus::Overdue->value]);
 
-        // دفعات الملاك — نفس المنطق
+        // دفعات الملاك — لا يوجد عمود فترة سماح في جدولها
         PropertyLeaseSchedule::query()
-            ->where('status', '!=', 'paid')
+            ->whereNotIn('status', ['paid', 'partial'])
             ->where('remaining_amount', '>', 0)
+            ->where('paid_amount', '<=', 0)
             ->where('due_date', '<', now()->toDateString())
             ->update(['status' => 'overdue']);
+    }
+
+    /**
+     * سلّم خطورة واحد لكل الأنواع.
+     *
+     * كان كل نوع يستعمل عتباته: دفعات وعقود المستأجرين ‎7/30‎، بينما عقود
+     * الملاك ‎30/60‎ — فكان اللون الأحمر يعني مدى زمنياً مختلفاً حسب النوع،
+     * وهذا يُفقده معناه كإشارة.
+     */
+    protected function severityFor(int $daysLeft): string
+    {
+        return match (true) {
+            $daysLeft <= 7  => 'danger',   // يشمل ما فات موعده (قيمة سالبة)
+            $daysLeft <= 30 => 'warning',
+            default         => 'info',
+        };
+    }
+
+    /** حساب التاريخ بعمود متغيّر لا تُجرّده أدوات الاستعلام — فنكتبه لكل محرّك */
+    private function gracePeriodExpiredExpression(): string
+    {
+        return DB::connection()->getDriverName() === 'sqlite'
+            ? "date(due_date, '+' || grace_period_days || ' days') < date('now')"
+            : 'DATE_ADD(due_date, INTERVAL grace_period_days DAY) < CURDATE()';
     }
 
     // ─── دفعات المستأجرين المتأخرة ──────────────────────────────────
@@ -148,7 +185,7 @@ class NotificationSyncService
 
         foreach ($upcoming as $schedule) {
             $daysLeft = (int) now()->diffInDays($schedule->due_date, false);
-            $severity = $daysLeft <= 7 ? 'danger' : ($daysLeft <= 30 ? 'warning' : 'info');
+            $severity = $this->severityFor($daysLeft);
 
             Notification::updateOrCreate(
                 ['notifiable_source_type' => PaymentSchedule::class, 'notifiable_source_id' => $schedule->id, 'type' => 'payment_due'],
@@ -187,7 +224,7 @@ class NotificationSyncService
 
         foreach ($expiring as $contract) {
             $daysLeft = (int) now()->diffInDays($contract->end_date, false);
-            $severity = $daysLeft <= 7 ? 'danger' : ($daysLeft <= 30 ? 'warning' : 'info');
+            $severity = $this->severityFor($daysLeft);
 
             Notification::updateOrCreate(
                 ['notifiable_source_type' => Contract::class, 'notifiable_source_id' => $contract->id, 'type' => 'contract_expiring'],
@@ -255,7 +292,7 @@ class NotificationSyncService
         foreach ($due as $schedule) {
             $daysLeft  = (int) now()->diffInDays($schedule->due_date, false);
             $isOverdue = $schedule->due_date->isPast();
-            $severity  = $isOverdue ? 'danger' : ($daysLeft <= 30 ? 'warning' : 'info');
+            $severity  = $this->severityFor($daysLeft);
 
             Notification::updateOrCreate(
                 ['notifiable_source_type' => PropertyLeaseSchedule::class, 'notifiable_source_id' => $schedule->id, 'type' => 'lease_payment_due'],
@@ -293,7 +330,7 @@ class NotificationSyncService
 
         foreach ($expiring as $lease) {
             $daysLeft = (int) now()->diffInDays($lease->end_date, false);
-            $severity = $daysLeft <= 30 ? 'danger' : ($daysLeft <= 60 ? 'warning' : 'info');
+            $severity = $this->severityFor($daysLeft);
 
             Notification::updateOrCreate(
                 ['notifiable_source_type' => PropertyLease::class, 'notifiable_source_id' => $lease->id, 'type' => 'property_lease_expiring'],

@@ -103,6 +103,7 @@ class NotificationSyncService
         $overdue = PaymentSchedule::query()
             ->where('status', 'overdue')
             ->where('remaining_amount', '>', 0)
+            ->whereHas('contract', fn ($q) => $q->notArchived())
             ->with('contract.tenant')
             ->get();
 
@@ -125,6 +126,7 @@ class NotificationSyncService
                 ->where('status', 'paid')
                 ->orWhere('status', PaymentScheduleStatus::Cancelled->value)
                 ->orWhere('remaining_amount', '<=', 0)
+                ->orWhereHas('contract', fn ($c) => $c->whereNotNull('archived_at'))
             )
             ->delete();
     }
@@ -140,6 +142,7 @@ class NotificationSyncService
             ])
             ->whereBetween('due_date', [now()->toDateString(), now()->addDays(90)->toDateString()])
             ->where('remaining_amount', '>', 0)
+            ->whereHas('contract', fn ($q) => $q->notArchived())
             ->with('contract.tenant')
             ->get();
 
@@ -160,13 +163,14 @@ class NotificationSyncService
             );
         }
 
-        // حذف التنبيهات التي سُددت أو ألغيت أو أصبحت متأخرة
+        // حذف التنبيهات التي سُددت أو ألغيت أو أصبحت متأخرة أو أُرشف عقدها
         Notification::where('type', 'payment_due')->where('status', 'open')
             ->whereHasMorph('notifiableSource', [PaymentSchedule::class], fn ($q) => $q
                 ->where('status', 'paid')
                 ->orWhere('status', PaymentScheduleStatus::Cancelled->value)
                 ->orWhere('remaining_amount', '<=', 0)
                 ->orWhere('due_date', '<', now()->toDateString())
+                ->orWhereHas('contract', fn ($c) => $c->whereNotNull('archived_at'))
             )
             ->delete();
     }
@@ -242,6 +246,9 @@ class NotificationSyncService
             ->whereIn('status', ['overdue', 'pending', 'partial'])
             ->where('due_date', '<=', now()->addDays(90)->toDateString())
             ->where('remaining_amount', '>', 0)
+            ->whereHas('lease', fn ($q) => $q
+                ->notArchived()
+                ->whereHas('property', fn ($p) => $p->notArchived()))
             ->with('lease.property')
             ->get();
 
@@ -264,7 +271,12 @@ class NotificationSyncService
         }
 
         Notification::where('type', 'lease_payment_due')->where('status', 'open')
-            ->whereHasMorph('notifiableSource', [PropertyLeaseSchedule::class], fn ($q) => $q->where('status', 'paid')->orWhere('remaining_amount', '<=', 0))
+            ->whereHasMorph('notifiableSource', [PropertyLeaseSchedule::class], fn ($q) => $q
+                ->where('status', 'paid')
+                ->orWhere('remaining_amount', '<=', 0)
+                ->orWhereHas('lease', fn ($l) => $l->whereNotNull('archived_at'))
+                ->orWhereHas('lease.property', fn ($p) => $p->whereNotNull('archived_at'))
+            )
             ->delete();
     }
 

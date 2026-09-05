@@ -33,8 +33,9 @@
     </x-sync-stale-warning>
 
     {{-- ═══ إحصاء سريع ═══ --}}
-    <div class="mb-6 grid gap-4 md:grid-cols-4">
+    <div class="mb-6 grid gap-4 md:grid-cols-5">
         @php
+            $totalOverdue = $groups['overdue']->count();
             $total30 = $groups[30]->count();
             $total60 = $groups[60]->count();
             $total90 = $groups[90]->count();
@@ -43,12 +44,16 @@
             <div class="text-2xl font-black text-slate-700">{{ $totalOpen }}</div>
             <div class="mt-1 text-xs text-slate-500">إجمالي مفتوحة</div>
         </div>
-        <div class="erp-card border-2 border-rose-100 p-5 text-center">
-            <div class="text-2xl font-black text-rose-600">{{ $total30 }}</div>
-            <div class="mt-1 text-xs text-slate-500">خلال 30 يوم</div>
+        <div class="erp-card border-2 border-rose-200 bg-rose-50/50 p-5 text-center">
+            <div class="text-2xl font-black text-rose-700">{{ $totalOverdue }}</div>
+            <div class="mt-1 text-xs font-semibold text-rose-600">متأخر</div>
         </div>
         <div class="erp-card border-2 border-amber-100 p-5 text-center">
-            <div class="text-2xl font-black text-amber-600">{{ $total60 }}</div>
+            <div class="text-2xl font-black text-amber-600">{{ $total30 }}</div>
+            <div class="mt-1 text-xs text-slate-500">خلال 30 يوم</div>
+        </div>
+        <div class="erp-card border-2 border-sky-100 p-5 text-center">
+            <div class="text-2xl font-black text-sky-600">{{ $total60 }}</div>
             <div class="mt-1 text-xs text-slate-500">خلال 60 يوم</div>
         </div>
         <div class="erp-card border-2 border-slate-200 p-5 text-center">
@@ -60,23 +65,32 @@
     {{-- ═══ المجموعات ═══ --}}
     @php
         $groupConfig = [
-            30 => [
-                'label'       => 'خلال 30 يوم',
-                'sublabel'    => 'تحتاج متابعة فورية',
-                'dot'         => 'bg-rose-500',
-                'headerBg'    => 'bg-rose-50 border-rose-200',
-                'headerText'  => 'text-rose-800',
-                'badge'       => 'bg-rose-600 text-white',
+            'overdue' => [
+                'label'       => 'متأخر',
+                'sublabel'    => 'تجاوز تاريخ الاستحقاق — يحتاج معالجة',
+                'dot'         => 'bg-rose-600',
+                'headerBg'    => 'bg-rose-50 border-rose-300',
+                'headerText'  => 'text-rose-900',
+                'badge'       => 'bg-rose-700 text-white',
                 'bodyBg'      => 'bg-rose-50/40',
             ],
-            60 => [
-                'label'       => 'خلال 60 يوم',
-                'sublabel'    => 'تستحق الانتباه',
+            30 => [
+                'label'       => 'خلال 30 يوم',
+                'sublabel'    => 'تحتاج متابعة قريبة',
                 'dot'         => 'bg-amber-500',
                 'headerBg'    => 'bg-amber-50 border-amber-200',
                 'headerText'  => 'text-amber-800',
                 'badge'       => 'bg-amber-500 text-white',
                 'bodyBg'      => 'bg-amber-50/40',
+            ],
+            60 => [
+                'label'       => 'خلال 60 يوم',
+                'sublabel'    => 'تستحق الانتباه',
+                'dot'         => 'bg-sky-500',
+                'headerBg'    => 'bg-sky-50 border-sky-200',
+                'headerText'  => 'text-sky-800',
+                'badge'       => 'bg-sky-500 text-white',
+                'bodyBg'      => 'bg-sky-50/40',
             ],
             90 => [
                 'label'       => 'خلال 90 يوم',
@@ -122,7 +136,7 @@
             @php $items = $groups[$days]; @endphp
 
             <div
-                x-data="{ open: {{ $days === 30 ? 'true' : ($items->count() > 0 ? 'false' : 'false') }} }"
+                x-data="{ open: {{ $days === 'overdue' ? 'true' : 'false' }} }"
                 class="overflow-hidden rounded-3xl border {{ $cfg['headerBg'] }}"
             >
                 {{-- رأس المجموعة --}}
@@ -213,7 +227,7 @@
 
     {{-- تنبيهات خارج نطاق 90 يوم --}}
     @php
-        $beyond = $totalOpen - $total30 - $total60 - $total90;
+        $beyond = $totalOpen - $totalOverdue - $total30 - $total60 - $total90;
     @endphp
     @if($beyond > 0)
         <p class="mt-4 text-center text-xs text-slate-400">

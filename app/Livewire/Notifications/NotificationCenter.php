@@ -34,31 +34,26 @@ class NotificationCenter extends Component
 
     public function render()
     {
-        $d30 = now()->addDays(30)->endOfDay();
-        $d60 = now()->addDays(60)->endOfDay();
-        $d90 = now()->addDays(90)->endOfDay();
+        $today = now()->startOfDay();
+        $d30   = now()->addDays(30)->endOfDay();
+        $d60   = now()->addDays(60)->endOfDay();
+        $d90   = now()->addDays(90)->endOfDay();
 
         // Portable severity sort (works on MySQL and SQLite)
         $severityOrder = "CASE severity WHEN 'danger' THEN 0 WHEN 'warning' THEN 1 WHEN 'info' THEN 2 ELSE 9 END";
 
+        $ordered = fn () => Notification::open()
+            ->orderByRaw($severityOrder)
+            ->orderBy('trigger_date');
+
+        // "متأخر" مجموعة مستقلة: كانت مدمجة داخل مجموعة الـ30 يوم لأن شرطها
+        // كان `<= اليوم+30` بلا حد أدنى، فصارت تضم كل ما فات منذ سنوات تحت
+        // عنوان "خلال 30 يوم".
         $groups = [
-            30 => Notification::open()
-                ->where('trigger_date', '<=', $d30)
-                ->orderByRaw($severityOrder)
-                ->orderBy('trigger_date')
-                ->get(),
-
-            60 => Notification::open()
-                ->whereBetween('trigger_date', [$d30->copy()->addSecond(), $d60])
-                ->orderByRaw($severityOrder)
-                ->orderBy('trigger_date')
-                ->get(),
-
-            90 => Notification::open()
-                ->whereBetween('trigger_date', [$d60->copy()->addSecond(), $d90])
-                ->orderByRaw($severityOrder)
-                ->orderBy('trigger_date')
-                ->get(),
+            'overdue' => $ordered()->where('trigger_date', '<', $today)->get(),
+            30        => $ordered()->whereBetween('trigger_date', [$today, $d30])->get(),
+            60        => $ordered()->whereBetween('trigger_date', [$d30->copy()->addSecond(), $d60])->get(),
+            90        => $ordered()->whereBetween('trigger_date', [$d60->copy()->addSecond(), $d90])->get(),
         ];
 
         $totalOpen = Notification::open()->count();

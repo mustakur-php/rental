@@ -140,7 +140,7 @@
         </main>
     </div>
     @livewireScripts
-    <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.45.2/dist/apexcharts.min.js" defer></script>
+    {{-- ApexCharts تُبنى مع أصول الموقع في resources/js/app.js — لا CDN --}}
 
     {{-- Toast Notifications --}}
     <div
